@@ -3,7 +3,6 @@
 
 idf_component_register(
     SRCS "gcode_parser.c"
-         "gcode_executor.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES motion_controller soldering_iron
+    REQUIRES stepper_motor soldering_iron
 )
