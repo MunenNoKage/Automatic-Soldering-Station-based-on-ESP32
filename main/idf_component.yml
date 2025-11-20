@@ -1,6 +1,4 @@
 ## IDF Component Manager Manifest File
 ## Declares dependencies for the main component
 
-dependencies:
-  joltwallet/littlefs: "^1.14.0"
-  ## This will automatically download and include esp_littlefs component
+dependencies: {}

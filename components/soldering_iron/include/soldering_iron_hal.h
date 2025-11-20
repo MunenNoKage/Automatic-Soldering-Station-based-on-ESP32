@@ -77,6 +77,28 @@ void soldering_iron_hal_set_enable(soldering_iron_handle_t handle, bool enable);
  */
 double soldering_iron_hal_get_power(soldering_iron_handle_t handle);
 
+/**
+ * @brief Get current power output percentage
+ */
+double soldering_iron_hal_get_power(soldering_iron_handle_t handle);
+
+/**
+ * @brief Встановлює нові константи ПІД-регулятора
+ * @param kp Пропорційний коефіцієнт
+ * @param ki Інтегральний коефіцієнт
+ * @param kd Диференціальний коефіцієнт
+ */
+void soldering_iron_hal_set_pid_constants(soldering_iron_handle_t handle, double kp, double ki, double kd);
+
+/**
+ * @brief Отримує поточні константи ПІД-регулятора
+ */
+void soldering_iron_hal_get_pid_constants(soldering_iron_handle_t handle, double *kp, double *ki, double *kd);
+
+void soldering_iron_hal_set_pid_constants(soldering_iron_handle_t handle, double kp, double ki, double kd);
+
+void soldering_iron_hal_get_pid_constants(soldering_iron_handle_t handle, double *kp, double *ki, double *kd);
+
 #ifdef __cplusplus
 }
 #endif

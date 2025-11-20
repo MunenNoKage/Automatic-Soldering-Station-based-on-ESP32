@@ -23,6 +23,7 @@ private:
     stepper_motor_handle_t handle_;
     int32_t target_position_;
     int32_t steps_per_mm;
+    stepper_direction_t positive_direction_ = STEPPER_DIR_COUNTERCLOCKWISE;
 
 public:
     /**
@@ -30,7 +31,7 @@ public:
      * @param config Motor configuration parameters
      * @param steps_per_mm Steps per millimeter for this motor
      */
-    explicit StepperMotor(const stepper_motor_config_t& config, uint32_t steps_per_mm);
+    explicit StepperMotor(const stepper_motor_config_t& config, uint32_t steps_per_mm, stepper_direction_t positive_direction = STEPPER_DIR_COUNTERCLOCKWISE);
     
     /**
      * @brief Destructor
@@ -54,11 +55,6 @@ public:
      * @brief Set rotation direction
      */
     void setDirection(stepper_direction_t direction);
-    
-    /**
-     * @brief Set microstepping mode
-     */
-    void setMicrostepMode(stepper_microstep_mode_t mode);
     
     /**
      * @brief Execute single step
@@ -91,6 +87,11 @@ public:
     int32_t getPosition() const;
     
     /**
+     * @brief Get target position
+     */
+    int32_t getTargetPosition() const;
+    
+    /**
      * @brief Reset position counter(set current position to 0)
      */
     void resetPosition();
@@ -101,14 +102,25 @@ public:
     bool isInitialized() const { return handle_ != nullptr; }
 
     /**
-     * @brief Convert millimeters to steps/256 for current motor configuration
+     * @brief Check if endpoint switch is triggered
+     * @return true if endpoint reached (active LOW), false otherwise or if no endpoint configured
      */
-    int32_t mm_to_steps_256(int64_t mm);
+    bool isEndpointReached() const;
 
     /**
-     * @brief Convert steps/256 to millimeters for current motor configuration
+     * @brief Convert millimeters to microsteps for current motor configuration
      */
-    int32_t steps_256_to_mm(int32_t steps);
+    int32_t mm_to_microsteps(int32_t mm);
+
+    /**
+     * @brief Convert microsteps to millimeters for current motor configuration
+     */
+    int32_t microsteps_to_mm(int32_t microsteps);
+
+    /**
+     * @brief Calibrate motor by moving to endpoint switch
+     */
+    void calibrate();
 };
 
 #endif // STEPPER_MOTOR_HPP

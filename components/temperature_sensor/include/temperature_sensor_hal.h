@@ -1,69 +1,79 @@
 /**
  * @file temperature_sensor_hal.h
- * @brief Hardware Abstraction Layer for AD8495 K-Type thermocouple
- * 
- * Provides low-level C interface for reading temperature from AD8495 amplifier.
- * Uses ESP32 ADC to read analog voltage and converts to temperature.
+ * @brief Hardware Abstraction Layer for MAX6675 K-Type thermocouple
+ * * Надає С-інтерфейс для зчитування температури з MAX6675.
+ * Використовує ESP32 SPI master driver.
  */
 
 #ifndef TEMPERATURE_SENSOR_HAL_H
 #define TEMPERATURE_SENSOR_HAL_H
 
 #include <stdint.h>
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
+#include <stdbool.h>
+#include "driver/gpio.h"
+#include "driver/spi_master.h" // Потрібен для SPI
+#include "driver/gpio.h"       // Потрібен для gpio_num_t
+#include "esp_err.h"           // Потрібен для esp_err_t
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/**
- * @brief Temperature sensor configuration
- */
-typedef struct {
-    adc_channel_t adc_channel;
-    adc_bitwidth_t adc_bitwidth;
-    adc_atten_t adc_attenuation;
-    uint32_t samples_count;
-    double voltage_offset;
-    double voltage_scale;
-} temperature_sensor_config_t;
+    /**
+     * @brief Конфігурація SPI-сенсора (MAX6675)
+     */
+    typedef struct
+    {
+        spi_host_device_t host_id; // SPI хост (напр. VSPI_HOST)
+        gpio_num_t pin_miso;       // Пін MISO
+        gpio_num_t pin_mosi;       // Пін MOSI (можна -1)
+        gpio_num_t pin_clk;         // Пін SCLK
+        gpio_num_t pin_cs;          // Пін Chip Select
+        int dma_chan;              // Канал DMA (0 = вимкнено)
+        int clock_speed_hz;        // Швидкість SPI (напр. 2*1000*1000)
+    } temperature_sensor_config_t;
 
-/**
- * @brief Temperature sensor handle
- */
-typedef struct temperature_sensor_handle_s* temperature_sensor_handle_t;
+    /**
+     * @brief "Ручка" сенсора (непрозорий вказівник)
+     * Зберігає внутрішній стан, вкл. spi_device_handle_t
+     */
+    typedef struct temperature_sensor_handle_s *temperature_sensor_handle_t;
 
-/**
- * @brief Initialize temperature sensor
- */
-temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor_config_t* config);
+    /**
+     * @brief Ініціалізація SPI-шини та сенсора MAX6675
+     * * Налаштовує SPI шину та додає до неї пристрій MAX6675.
+     * @param config Вказівник на структуру конфігурації.
+     * @return "Ручка" сенсора, або NULL у разі помилки.
+     */
+    temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor_config_t *config);
 
-/**
- * @brief Deinitialize temperature sensor
- */
-void temperature_sensor_hal_deinit(temperature_sensor_handle_t handle);
+    /**
+     * @brief Деініціалізація сенсора та звільнення SPI-шини
+     * * @param handle "Ручка" сенсора, отримана з hal_init.
+     */
+    void temperature_sensor_hal_deinit(temperature_sensor_handle_t handle);
 
-/**
- * @brief Read raw ADC value
- */
-uint32_t temperature_sensor_hal_read_raw(temperature_sensor_handle_t handle);
+    /**
+     * @brief Зчитування температури в градусах Цельсія
+     *
+     * @param handle "Ручка" сенсора.
+     * @param[out] out_temp Вказівник, куди буде записана температура.
+     * @return esp_err_t:
+     * - ESP_OK: Успіх, температура записана в out_temp.
+     * - ESP_FAIL: Помилка сенсора (термопара не підключена).
+     * - Інші коди помилок: Помилка комунікації SPI.
+     */
+    esp_err_t temperature_sensor_hal_read_temperature(temperature_sensor_handle_t handle, double *out_temp);
 
-/**
- * @brief Read voltage in millivolts
- */
-uint32_t temperature_sensor_hal_read_voltage(temperature_sensor_handle_t handle);
-
-/**
- * @brief Read temperature in Celsius
- */
-double temperature_sensor_hal_read_temperature(temperature_sensor_handle_t handle);
-
-/**
- * @brief Calibrate sensor with known temperature
- */
-void temperature_sensor_hal_calibrate(temperature_sensor_handle_t handle, double known_temperature);
+    /**
+     * @brief (Опційно) Зчитування "сирих" 16-бітних даних з сенсора
+     *
+     * @param handle "Ручка" сенсора.
+     * @param[out] out_raw_data Вказівник, куди будуть записані сирі дані.
+     * @return esp_err_t ESP_OK або помилка SPI.
+     */
+    esp_err_t temperature_sensor_hal_read_raw(temperature_sensor_handle_t handle, uint16_t *out_raw_data);
 
 #ifdef __cplusplus
 }

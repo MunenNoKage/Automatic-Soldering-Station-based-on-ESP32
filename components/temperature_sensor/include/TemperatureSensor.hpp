@@ -37,22 +37,12 @@ public:
      * @brief Read raw ADC value
      */
     uint32_t readRaw() const;
-    
-    /**
-     * @brief Read voltage in millivolts
-     */
-    uint32_t readVoltage() const;
-    
+
     /**
      * @brief Read temperature in Celsius
      */
     double readTemperature() const;
-    
-    /**
-     * @brief Calibrate with known temperature
-     */
-    void calibrate(double known_temperature);
-    
+
     /**
      * @brief Check if initialized
      */

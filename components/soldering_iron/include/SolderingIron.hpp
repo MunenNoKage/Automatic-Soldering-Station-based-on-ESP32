@@ -69,6 +69,16 @@ public:
      */
     bool isInitialized() const { return handle_ != nullptr; }
 
+    /**
+     * @brief Встановлює нові константи ПІД-регулятора
+     */
+    void setPIDConstants(double kp, double ki, double kd);
+
+    /**
+     * @brief Отримує поточні константи ПІД-регулятора
+     */
+    void getPIDConstants(double &kp, double &ki, double &kd) const;
+
 private:
     soldering_iron_handle_t handle_;
 };

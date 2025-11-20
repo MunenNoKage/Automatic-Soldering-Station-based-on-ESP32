@@ -1,18 +1,29 @@
 /**
  * @file stepper_motor_hal.c
  * @brief Implementation of stepper motor HAL
- * 
+ *
  * Low-level driver implementation for TMC2208 stepper motor control.
  */
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_task_wdt.h"
+#include "hal/wdt_hal.h"
 
 #include "stepper_motor_hal.h"
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#define MAX_STEP_DELAY_US 400
+#define MIN_STEP_DELAY_US 1
 
 static const char *TAG = "STEPPER_HAL";
 
@@ -24,8 +35,6 @@ struct stepper_motor_handle_s {
     bool is_enabled;
     bool is_initialized;
     stepper_direction_t direction;
-    stepper_microstep_mode_t microstep_mode;
-    uint32_t step_time_us;  // Time between steps in microseconds
 };
 
 stepper_motor_handle_t stepper_motor_hal_init(const stepper_motor_config_t* config)
@@ -40,8 +49,6 @@ stepper_motor_handle_t stepper_motor_hal_init(const stepper_motor_config_t* conf
     ESP_LOGI(TAG, "  STEP:   GPIO %d", config->step_pin);
     ESP_LOGI(TAG, "  DIR:    GPIO %d", config->dir_pin);
     ESP_LOGI(TAG, "  ENABLE: GPIO %d", config->enable_pin);
-    ESP_LOGI(TAG, "  MS1:    GPIO %d", config->mode0_pin);
-    ESP_LOGI(TAG, "  MS2:    GPIO %d", config->mode1_pin);
 
     // Allocate memory for handle and check for errors
     stepper_motor_handle_t handle = malloc(sizeof(struct stepper_motor_handle_s));
@@ -54,27 +61,54 @@ stepper_motor_handle_t stepper_motor_hal_init(const stepper_motor_config_t* conf
     handle->is_enabled = false;
     handle->is_initialized = true;
     handle->direction = STEPPER_DIR_CLOCKWISE;
-    handle->microstep_mode = STEPPER_MICROSTEP_1_4;
-    handle->step_time_us = 1000; // Default 1ms between steps
 
-    // Initialize GPIO pins
+    // Initialize output GPIO pins (step, dir, enable)
     gpio_config_t io_conf = {
         .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_OUTPUT,
         .pin_bit_mask = (1ULL << config->step_pin) |
                         (1ULL << config->dir_pin) |
-                        (1ULL << config->enable_pin) |
-                        (1ULL << config->mode0_pin) |
-                        (1ULL << config->mode1_pin),
+                        (1ULL << config->enable_pin),
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .pull_up_en = GPIO_PULLUP_DISABLE
     };
 
-
     if (gpio_config(&io_conf) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure GPIO");
+        ESP_LOGE(TAG, "Failed to configure output GPIO pins");
         free(handle);
         return NULL;
+    }
+
+    // Initialize endpoint pin as input with pull-up
+    if (config->endpoint_pin != GPIO_NUM_NC) {
+        // Check if pin is input-only (GPIO 34-39 on ESP32)
+        bool is_input_only = (config->endpoint_pin >= 34 && config->endpoint_pin <= 39);
+        
+        // ADDED: Reset pin to digital GPIO mode (disable ADC)
+        gpio_reset_pin(config->endpoint_pin);
+        
+        gpio_config_t endpoint_conf = {
+            .intr_type = GPIO_INTR_DISABLE,
+            .mode = GPIO_MODE_INPUT,
+            .pin_bit_mask = (1ULL << config->endpoint_pin),
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .pull_up_en = is_input_only ? GPIO_PULLUP_DISABLE : GPIO_PULLUP_ENABLE
+        };
+
+        if (gpio_config(&endpoint_conf) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to configure endpoint GPIO pin");
+            free(handle);
+            return NULL;
+        }
+        
+        // ADDED: Test read the pin immediately after configuration
+        int level = gpio_get_level(config->endpoint_pin);
+        ESP_LOGI(TAG, "  ENDPOINT: GPIO %d (input-only, external pull-up) - Initial level: %d", 
+                 config->endpoint_pin, level);
+        
+        if (is_input_only) {
+            ESP_LOGI(TAG, "  Note: GPIO 34-39 are ADC pins. If not working, check ADC is disabled.");
+        }
     }
 
     ESP_LOGI(TAG, "GPIO pins configured successfully");
@@ -83,16 +117,10 @@ stepper_motor_handle_t stepper_motor_hal_init(const stepper_motor_config_t* conf
     // TMC2208: ENABLE pin is active LOW (0 = enabled, 1 = disabled)
     gpio_set_level(config->enable_pin, 1);  // Start disabled
     ESP_LOGI(TAG, "ENABLE pin set HIGH (motor disabled)");
-    
+
     // Set default direction to clockwise
     gpio_set_level(config->dir_pin, 0);
     ESP_LOGI(TAG, "DIR pin set LOW (clockwise)");
-    
-    // TMC2208: Set default microstepping mode
-    // MS1=0, MS2=0 for 1/8 step (default after power-on)
-    gpio_set_level(config->mode0_pin, 0);
-    gpio_set_level(config->mode1_pin, 0);
-    ESP_LOGI(TAG, "MS pins set for 1/8 microstepping");
 
     ESP_LOGI(TAG, "Stepper motor initialization complete");
     return handle;
@@ -136,55 +164,12 @@ void stepper_motor_hal_set_direction(stepper_motor_handle_t handle, stepper_dire
 
     gpio_set_level(handle->config.dir_pin, direction == STEPPER_DIR_CLOCKWISE ? 0 : 1);
     handle->direction = direction;
-    ESP_LOGI(TAG, "Direction set to %s (DIR pin = %d)", 
+    ESP_LOGI(TAG, "Direction set to %s (DIR pin = %d)",
              direction == STEPPER_DIR_CLOCKWISE ? "CLOCKWISE" : "COUNTERCLOCKWISE",
              direction == STEPPER_DIR_CLOCKWISE ? 0 : 1);
 }
 
-void stepper_motor_hal_set_microstep_mode(stepper_motor_handle_t handle, stepper_microstep_mode_t microstep) {
-    if (handle == NULL || !handle->is_initialized) {
-        ESP_LOGW(TAG, "Handle is NULL or not initialized");
-        return;
-    }
-
-    // TMC2208 Microstepping Configuration (MS1, MS2):
-    // MS2 MS1 | Microsteps
-    // 0   0   | 1/8 step (default)
-    // 0   1   | 1/2 step  
-    // 1   0   | 1/4 step
-    // 1   1   | 1/16 step
-    // Note: 1/32 requires StealthChop mode via UART, using 1/16 instead
-    
-    switch (microstep) {
-        case STEPPER_MICROSTEP_1_4:
-            gpio_set_level(handle->config.mode0_pin, 0);  // MS1 = 0
-            gpio_set_level(handle->config.mode1_pin, 1);  // MS2 = 1
-            ESP_LOGI(TAG, "Microstep mode set to 1/4");
-            break;
-        case STEPPER_MICROSTEP_1_8:
-            gpio_set_level(handle->config.mode0_pin, 0);  // MS1 = 0
-            gpio_set_level(handle->config.mode1_pin, 0);  // MS2 = 0
-            ESP_LOGI(TAG, "Microstep mode set to 1/8");
-            break;
-        case STEPPER_MICROSTEP_1_16:
-            gpio_set_level(handle->config.mode0_pin, 1);  // MS1 = 1
-            gpio_set_level(handle->config.mode1_pin, 1);  // MS2 = 1
-            ESP_LOGI(TAG, "Microstep mode set to 1/16");
-            break;
-        case STEPPER_MICROSTEP_1_32:
-            // TMC2208 doesn't support 1/32 via MS pins, use 1/16 instead
-            gpio_set_level(handle->config.mode0_pin, 1);  // MS1 = 1
-            gpio_set_level(handle->config.mode1_pin, 1);  // MS2 = 1
-            ESP_LOGW(TAG, "1/32 microstep not supported on TMC2208, using 1/16 instead");
-            break;
-        default:
-            ESP_LOGW(TAG, "Invalid microstepping mode");
-            return;
-    }
-    handle->microstep_mode = microstep;
-}
-
-void stepper_motor_hal_step(stepper_motor_handle_t handle) {
+void stepper_motor_hal_step(stepper_motor_handle_t handle, uint32_t signal_width_us) {
     if (handle == NULL || !handle->is_initialized) {
         ESP_LOGW(TAG, "Handle is NULL or not initialized");
         return;
@@ -195,11 +180,9 @@ void stepper_motor_hal_step(stepper_motor_handle_t handle) {
         return;
     }
 
-    // Generate a step pulse (TMC2208 requires minimum 100ns pulse width, using 5us to be safe)
     gpio_set_level(handle->config.step_pin, 1);
-    esp_rom_delay_us(5);  // 5 microsecond pulse
+    esp_rom_delay_us(signal_width_us);
     gpio_set_level(handle->config.step_pin, 0);
-    esp_rom_delay_us(5);  // 5 microsecond low time before next pulse
 }
 
 void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps) {
@@ -213,43 +196,37 @@ void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t ste
         return;
     }
 
-    ESP_LOGI(TAG, "Stepping %lu times with %lu us delay between steps", steps, handle->step_time_us);
-    
+    int32_t l = MAX_STEP_DELAY_US; // MIN(steps, MAX_STEP_DELAY_US);
+    int32_t delay = MAX_STEP_DELAY_US;
+
     for (uint32_t i = 0; i < steps; i++) {
-        stepper_motor_hal_step(handle);
-        esp_rom_delay_us(handle->step_time_us);
-        
-        // Log progress every 100 steps
-        if ((i + 1) % 100 == 0) {
-            ESP_LOGI(TAG, "Progress: %lu/%lu steps", i + 1, steps);
+
+        delay = MAX(MIN_STEP_DELAY_US, MAX(l - 1 * (int32_t)i, l + 1 * ((int32_t)i - (int32_t)steps)));  // Simple linear ramp down
+
+        // stepper_motor_hal_step(handle, (uint32_t)(5.0 + ((double)delay) / ((double)MAX_STEP_DELAY_US) * 195.0));
+        stepper_motor_hal_step(handle, (uint32_t)(delay + 320));
+
+        if (i % 100 == 99) {
+            // ESP_LOGI(TAG, "Progress: %lu/%lu steps", i, steps);
+            // ESP_LOGI(TAG, "Current delay: %lu ms", delay);
+            reset_watchdog_timer();
         }
+
+        // if (i % 6000 == 5999) {
+        //     vTaskDelay(pdMS_TO_TICKS(100));
+        // }
+        // esp_rom_delay_us(delay);
+
+        // if (delay < 1000) {
+        //     esp_rom_delay_us(delay);
+        // } else {
+        //     vTaskDelay(pdMS_TO_TICKS(MAX(delay / 1000, 2)));
+        // }
+
+        // Log progress every 100 steps
     }
     
-    ESP_LOGI(TAG, "Completed %lu steps", steps);
-}
-
-void stepper_motor_hal_set_step_time(stepper_motor_handle_t handle, uint32_t step_time_us) {
-    if (handle == NULL || !handle->is_initialized) {
-        ESP_LOGW(TAG, "Handle is NULL or not initialized");
-        return;
-    }
-
-    if (step_time_us < 100) {
-        ESP_LOGW(TAG, "Step time too short, setting to minimum 100us");
-        step_time_us = 100;
-    }
-
-    handle->step_time_us = step_time_us;
-    ESP_LOGI(TAG, "Step time set to %lu us (%.1f Hz)", step_time_us, 1000000.0f / step_time_us);
-}
-
-uint32_t stepper_motor_hal_get_step_time(stepper_motor_handle_t handle) {
-    if (handle == NULL || !handle->is_initialized) {
-        ESP_LOGW(TAG, "Handle is NULL or not initialized");
-        return 0;
-    }
-
-    return handle->step_time_us;
+    // ESP_LOGI(TAG, "Completed %lu steps", steps);
 }
 
 stepper_direction_t stepper_motor_hal_get_direction(stepper_motor_handle_t handle) {
@@ -261,11 +238,28 @@ stepper_direction_t stepper_motor_hal_get_direction(stepper_motor_handle_t handl
     return handle->direction;
 }
 
-stepper_microstep_mode_t stepper_motor_hal_get_microstep_mode(stepper_motor_handle_t handle) {
+bool stepper_motor_hal_endpoint_reached(stepper_motor_handle_t handle) {
     if (handle == NULL || !handle->is_initialized) {
         ESP_LOGW(TAG, "Handle is NULL or not initialized");
-        return STEPPER_MICROSTEP_1_4;
+        return false;
     }
 
-    return handle->microstep_mode;
+    if (handle->config.endpoint_pin == GPIO_NUM_NC) {
+        ESP_LOGD(TAG, "No endpoint pin configured");
+        return false;
+    }
+
+    // Assuming active LOW endpoint switch (switch closes to GND)
+    bool endpoint_state = !gpio_get_level(handle->config.endpoint_pin);
+    if (endpoint_state) {
+        ESP_LOGI(TAG, "Endpoint reached!");
+    }
+    return endpoint_state;
+}
+
+void reset_watchdog_timer() {
+    wdt_hal_context_t rtc_wdt_ctx = RWDT_HAL_CONTEXT_DEFAULT();
+    wdt_hal_write_protect_disable(&rtc_wdt_ctx);
+    wdt_hal_feed(&rtc_wdt_ctx);
+    wdt_hal_write_protect_enable(&rtc_wdt_ctx);
 }

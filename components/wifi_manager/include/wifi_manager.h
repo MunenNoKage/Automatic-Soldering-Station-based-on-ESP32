@@ -21,10 +21,9 @@ extern "C" {
  */
 typedef struct {
     const char* ssid;
-    const char* password;
     uint8_t channel;
     uint8_t max_connections;
-} wifi_config_t;
+} wifi_manager_config_t;
 
 /**
  * @brief WiFi manager handle
@@ -34,7 +33,7 @@ typedef struct wifi_manager_handle_s* wifi_manager_handle_t;
 /**
  * @brief Initialize WiFi manager and start AP
  */
-wifi_manager_handle_t wifi_manager_init(const wifi_config_t* config);
+wifi_manager_handle_t wifi_manager_init(const wifi_manager_config_t* config);
 
 /**
  * @brief Deinitialize WiFi manager

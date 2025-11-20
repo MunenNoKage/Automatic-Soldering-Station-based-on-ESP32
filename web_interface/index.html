@@ -20,8 +20,46 @@
 
     <main>
         <section id="gcode-section">
+            <h2>Drill file Upload</h2>
+            <div class="upload-container">
+                <input type="file" id="drill-file-input" accept=".DRL" />
+                <label for="drill-file-input" class="file-label">Choose .DRL file</label>
+                <span id="file-name" class="file-name"></span>
+                <button id="upload-btn" class="btn-upload" disabled="true">Parse</button>
+            </div>
+            <div id="upload-status" class="upload-status"></div>
         </section>
 
+        <section id="preview-section" style="display: none;">
+            <h2>File Preview</h2>
+            <div class="preview-container">
+                <div class="preview-pane">
+                    <h3>Drill File Content</h3>
+                    <pre id="drill-content"></pre>
+                </div>
+                <div class="preview-pane">
+                    <h3>Generated G-Code</h3>
+                    <pre id="gcode-content"></pre>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <button id="send-btn" class="btn-send">Upload to Controller</button>
+                <button id="cancel-btn" class="btn-cancel">Cancel</button>
+            </div>
+            <div id="send-status" class="upload-status"></div>
+        </section>
+
+        <section id="control-section">
+            <h2>Execution Control</h2>
+            <div class="control-buttons">
+                <button id="start-btn" class="btn-control btn-start" disabled>Start</button>
+                <button id="pause-btn" class="btn-control btn-pause" disabled>Pause</button>
+                <button id="resume-btn" class="btn-control btn-resume" disabled>Resume</button>
+                <button id="stop-btn" class="btn-control btn-stop" disabled>Stop</button>
+            </div>
+            <div id="control-status" class="upload-status"></div>
+        </section>
+<!-- 
         <section id="visualization-section">
         </section>
 
@@ -35,7 +73,7 @@
         </section>
 
         <section id="control-buttons-section">
-        </section>
+        </section> -->
     </main>
 
     <footer>

@@ -1,9 +1,18 @@
 /**
  * @file gcode_parser.h
  * @brief G-Code parser for soldering station commands
- * 
+ *
  * Parses and validates G-Code commands for motion and soldering operations.
- * Supports custom dialect for automated soldering.
+ *
+ * SUPPORTED COMMANDS:
+ * - G0 X<pos> Y<pos> : Move to XY position (Z/F parameters ignored)
+ * - S<amount>        : Feed solder (custom command)
+ *
+ * IGNORED/SYSTEM-HANDLED:
+ * - Z coordinates: System controls Z movement (safe, approach, contact heights)
+ * - F (feed rate): System uses configured feed rates
+ * - G1, G4, G28, M104, M109, etc.: All other G/M-codes ignored
+ * - Temperature, homing, timing: All handled by system configuration
  */
 
 #ifndef GCODE_PARSER_H
@@ -18,34 +27,45 @@ extern "C" {
 
 /**
  * @brief G-Code command types
+ *
+ * Only GCODE_CMD_MOVE (G0) and GCODE_CMD_FEED_SOLDER (S) are actively processed.
+ * Other types exist for compatibility but are filtered during parsing.
  */
 typedef enum {
     GCODE_CMD_NONE = 0,
-    GCODE_CMD_MOVE,              // G0/G1 - Move to position
-    GCODE_CMD_FEED_SOLDER,       // Custom - Feed solder
-    GCODE_CMD_SET_TEMPERATURE,   // M104 - Set temperature
-    GCODE_CMD_HOME,              // G28 - Home axes
-    GCODE_CMD_DWELL,             // G4 - Dwell/pause
+    GCODE_CMD_MOVE,              // G0 - Rapid positioning (SUPPORTED)
+    GCODE_CMD_FEED_SOLDER,       // S<amount> - Feed solder (SUPPORTED)
+    GCODE_CMD_SET_TEMPERATURE,   // M104/M109 - Ignored (system configured)
+    GCODE_CMD_HOME,              // G28 - Ignored (system handles)
+    GCODE_CMD_DWELL,             // G4 - Ignored (system handles)
     GCODE_CMD_UNKNOWN
 } gcode_command_type_t;
 
 /**
  * @brief Parsed G-Code command structure
+ *
+ * ACTIVELY USED FIELDS:
+ * - type: Command type (GCODE_CMD_MOVE or GCODE_CMD_FEED_SOLDER)
+ * - x, y: Position coordinates (for G0 move commands)
+ * - s: Solder feed amount (for S commands)
+ *
+ * PARSED BUT IGNORED:
+ * - z, f, t: Parsed for compatibility but not used (system-configured)
  */
 typedef struct {
     gcode_command_type_t type;
     bool has_x;
     bool has_y;
-    bool has_z;
-    bool has_f;
+    bool has_z;        // Parsed but ignored
+    bool has_f;        // Parsed but ignored
     bool has_s;
-    bool has_t;
-    double x;
-    double y;
-    double z;
-    double f;
-    uint32_t s;
-    double t;
+    bool has_t;        // Parsed but ignored
+    double x;          // Used: X position
+    double y;          // Used: Y position
+    double z;          // Ignored: Z is system-configured
+    double f;          // Ignored: Feed rate is system-configured
+    uint32_t s;        // Used: Solder feed amount
+    double t;          // Ignored: Timing is system-configured
 } gcode_command_t;
 
 /**

@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "fsm_controller.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,8 +34,11 @@ typedef struct web_server_handle_s* web_server_handle_t;
 
 /**
  * @brief Initialize and start web server
+ * 
+ * @param config Web server configuration
+ * @param fsm_handle FSM controller handle for posting events
  */
-web_server_handle_t web_server_init(const web_server_config_t* config);
+web_server_handle_t web_server_init(const web_server_config_t* config, fsm_controller_handle_t fsm_handle);
 
 /**
  * @brief Stop and deinitialize web server
