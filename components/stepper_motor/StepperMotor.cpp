@@ -113,7 +113,7 @@ void StepperMotor::stepMultiple(uint32_t steps) {
         position_ -= steps;
     }
 
-    stepper_motor_hal_step_multiple(handle_, steps);
+    stepper_motor_hal_step_multiple(handle_, steps, false);
 
     if (isEndpointReached()) {
         ESP_LOGW(TAG, "Endpoint reached during stepMultiple. Reseting position to 0");
@@ -226,7 +226,7 @@ void StepperMotor::calibrate() {
     setDirection((positive_direction_ == STEPPER_DIR_CLOCKWISE) ? STEPPER_DIR_COUNTERCLOCKWISE : STEPPER_DIR_CLOCKWISE);
 
     while (!isEndpointReached()) {
-        stepper_motor_hal_step_multiple(handle_, 100); // Step in small increments
+        stepper_motor_hal_step_multiple(handle_, 50000, true); // Step in small increments
         vTaskDelay(pdMS_TO_TICKS(2)); // Small delay to avoid busy-waiting
     }
 

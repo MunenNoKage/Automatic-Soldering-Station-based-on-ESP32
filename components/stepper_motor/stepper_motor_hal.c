@@ -206,7 +206,7 @@ uint32_t delayForIthStep(stepper_motor_handle_t handle, int32_t step_i, int32_t 
     return (uint32_t)result;
 }
 
-void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps) {
+void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps, bool check_endpoint) {
     if (handle == NULL || !handle->is_initialized) {
         ESP_LOGW(TAG, "Handle is NULL or not initialized");
         return;
@@ -229,6 +229,11 @@ void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t ste
             // ESP_LOGI(TAG, "Progress: %lu/%lu steps", i, steps);
             // ESP_LOGI(TAG, "Current delay: %lu ms", delay);
             reset_watchdog_timer();
+        }
+
+        if (check_endpoint && stepper_motor_hal_endpoint_reached(handle)) {
+            ESP_LOGI(TAG, "Endpoint reached during multi-step at step %lu. Stopping.", i);
+            break;
         }
 
         // if (i % 6000 == 5999) {

@@ -105,7 +105,7 @@ void stepper_motor_hal_step(stepper_motor_handle_t handle, uint32_t signal_width
 /**
  * @brief Execute multiple steps
  */
-void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps);
+void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps, bool check_endpoint);
 
 /**
  * @brief Set time between steps in microseconds

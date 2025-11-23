@@ -64,8 +64,8 @@ static void init_motors() {
         .dir_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_X_DIR_PIN),
         .enable_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_X_ENABLE_PIN),
         .endpoint_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_X_MIN_ENDPOINT_PIN),
-        .k_slope = 0.8,
-        .minimal_step_delay_us = 260
+        .k_slope = 1.8,
+        .minimal_step_delay_us = 245
     };
     motor_x = new StepperMotor(config_x, CONFIG_MOTOR_X_MICROSTEPS_IN_MM, STEPPER_DIR_COUNTERCLOCKWISE);
     if (!motor_x->isInitialized()) {
@@ -80,8 +80,8 @@ static void init_motors() {
         .dir_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_Y_DIR_PIN),
         .enable_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_Y_ENABLE_PIN),
         .endpoint_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_Y_MIN_ENDPOINT_PIN),
-        .k_slope = 0.8,
-        .minimal_step_delay_us = 260
+        .k_slope = 1.8,
+        .minimal_step_delay_us = 245
     };
     motor_y = new StepperMotor(config_y, CONFIG_MOTOR_Y_MICROSTEPS_IN_MM, STEPPER_DIR_CLOCKWISE);
     if (!motor_y->isInitialized()) {
@@ -112,8 +112,8 @@ static void init_motors() {
         .dir_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_S_DIR_PIN),
         .enable_pin = static_cast<gpio_num_t>(CONFIG_MOTOR_S_ENABLE_PIN),
         .endpoint_pin = GPIO_NUM_NC,
-        .k_slope = 1.0,
-        .minimal_step_delay_us = 400
+        .k_slope = 0.0,
+        .minimal_step_delay_us = 600
     };
     motor_s = new StepperMotor(config_s, CONFIG_MOTOR_S_MICROSTEPS_IN_MM, STEPPER_DIR_CLOCKWISE);
     if (!motor_s->isInitialized()) {
