@@ -22,8 +22,9 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define MAX_STEP_DELAY_US 400
-#define MIN_STEP_DELAY_US 1
+static const int32_t T_START_DELAY_US = 700;
+// static const int32_t T_MINIMAL_DELAY_US = 200;
+// static const double K_SLOPE = 0.1;
 
 static const char *TAG = "STEPPER_HAL";
 
@@ -183,6 +184,26 @@ void stepper_motor_hal_step(stepper_motor_handle_t handle, uint32_t signal_width
     gpio_set_level(handle->config.step_pin, 1);
     esp_rom_delay_us(signal_width_us);
     gpio_set_level(handle->config.step_pin, 0);
+    esp_rom_delay_us(6);
+}
+
+uint32_t delayForIthStep(stepper_motor_handle_t handle, int32_t step_i, int32_t n_steps_to_make) {
+    int32_t a = 0;
+    int32_t b = 0;
+    int32_t result = 0;
+
+
+    a = (double)T_START_DELAY_US - (double)step_i * handle->config.k_slope;
+    b = (double)T_START_DELAY_US + (double)(step_i - n_steps_to_make) * handle->config.k_slope;
+
+    result = MIN(MAX(MAX(a, b), handle->config.minimal_step_delay_us), T_START_DELAY_US);
+
+    if (result <= 0) {
+        ESP_LOGE(TAG, "Calculated delay is non-positive: %d us", result);
+        return T_START_DELAY_US;
+    }
+
+    return (uint32_t)result;
 }
 
 void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t steps) {
@@ -196,15 +217,13 @@ void stepper_motor_hal_step_multiple(stepper_motor_handle_t handle, uint32_t ste
         return;
     }
 
-    int32_t l = MAX_STEP_DELAY_US; // MIN(steps, MAX_STEP_DELAY_US);
-    int32_t delay = MAX_STEP_DELAY_US;
+    uint32_t delay = T_START_DELAY_US;
 
     for (uint32_t i = 0; i < steps; i++) {
 
-        delay = MAX(MIN_STEP_DELAY_US, MAX(l - 1 * (int32_t)i, l + 1 * ((int32_t)i - (int32_t)steps)));  // Simple linear ramp down
+        delay = delayForIthStep(handle, (int32_t)i, (int32_t)steps);
 
-        // stepper_motor_hal_step(handle, (uint32_t)(5.0 + ((double)delay) / ((double)MAX_STEP_DELAY_US) * 195.0));
-        stepper_motor_hal_step(handle, (uint32_t)(delay + 320));
+        stepper_motor_hal_step(handle, delay);
 
         if (i % 100 == 99) {
             // ESP_LOGI(TAG, "Progress: %lu/%lu steps", i, steps);

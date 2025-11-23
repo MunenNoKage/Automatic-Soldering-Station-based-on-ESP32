@@ -188,13 +188,13 @@ menu "Automatic Soldering Station Configuration"
 
         config SOLDERING_IRON_MAX_TEMP
             int "Maximum Temperature (°C)"
-            default 450
+            default 150
             help
                 Maximum allowed temperature for soldering iron
 
         config SOLDERING_IRON_DEFAULT_TEMP
             int "Default Temperature (°C)"
-            default 350
+            default 50
             help
                 Default temperature setting for soldering iron
     endmenu

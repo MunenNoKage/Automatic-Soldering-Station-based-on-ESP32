@@ -43,7 +43,9 @@ typedef struct {
     gpio_num_t step_pin;
     gpio_num_t dir_pin;
     gpio_num_t enable_pin;
-    gpio_num_t endpoint_pin;    // Limit switch input pin
+    gpio_num_t endpoint_pin;
+    double k_slope;
+    int32_t minimal_step_delay_us;
 } stepper_motor_config_t;
 
 /**
