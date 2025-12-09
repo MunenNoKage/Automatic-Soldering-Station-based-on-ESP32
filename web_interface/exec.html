@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--
+  @file exec.html
+  @brief Execution control page for automatic soldering station
+  
+  Provides UI for controlling G-Code execution (start, pause, resume, stop).
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Execution Control - Automatic Soldering Station</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Automatic Soldering Station - Execution Control</h1>
+    </header>
+
+    <main>
+        <section id="control-section">
+            <h2>Execution Control</h2>
+            <div class="control-buttons">
+                <button id="start-btn" class="btn-control btn-start">Start</button>
+                <button id="pause-btn" class="btn-control btn-pause" disabled>Pause</button>
+                <button id="resume-btn" class="btn-control btn-resume" disabled>Resume</button>
+                <button id="stop-btn" class="btn-control btn-stop" disabled>Stop</button>
+            </div>
+            <div id="control-status" class="upload-status"></div>
+        </section>
+
+        <section id="navigation-section">
+            <div class="nav-buttons">
+                <button onclick="window.location.href='index.html'" class="btn-nav">Back to Upload</button>
+                <button onclick="window.location.href='manual.html'" class="btn-nav">Go to Manual Control</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+    </footer>
+
+    <script src="exec.js"></script>
+</body>
+</html>

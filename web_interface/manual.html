@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+  @file manual.html
+  @brief Manual control page for automatic soldering station
+  
+  Provides UI for manual positioning and control of the soldering station.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Control - Automatic Soldering Station</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Automatic Soldering Station - Manual Control</h1>
+    </header>
+
+    <main>
+        <section id="manual-control-section">
+            <h2>Manual Control</h2>
+            <div class="manual-controls">
+                <div class="coord-inputs">
+                    <div class="input-group">
+                        <label for="manual-x">X Coordinate (mm):</label>
+                        <input type="number" id="manual-x" step="0.1" value="0" />
+                    </div>
+                    <div class="input-group">
+                        <label for="manual-y">Y Coordinate (mm):</label>
+                        <input type="number" id="manual-y" step="0.1" value="0" />
+                    </div>
+                </div>
+                <div class="manual-buttons">
+                    <button id="manual-enter-btn" class="btn-manual btn-enter">Enter Manual Mode</button>
+                    <button id="manual-move-btn" class="btn-manual btn-move" disabled>Move to Position</button>
+                    <button id="manual-exit-btn" class="btn-manual btn-exit" disabled>Exit Manual Mode</button>
+                </div>
+            </div>
+            <div id="manual-status" class="upload-status"></div>
+        </section>
+
+        <section id="navigation-section">
+            <div class="nav-buttons">
+                <button onclick="window.location.href='index.html'" class="btn-nav">Back to Upload</button>
+                <button onclick="window.location.href='exec.html'" class="btn-nav">Go to Execution Control</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+    </footer>
+
+    <script src="manual.js"></script>
+</body>
+</html>

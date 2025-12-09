@@ -25,11 +25,23 @@ extern SemaphoreHandle_t g_gcode_mutex;
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
+extern const uint8_t manual_html_start[] asm("_binary_manual_html_start");
+extern const uint8_t manual_html_end[] asm("_binary_manual_html_end");
+
+extern const uint8_t exec_html_start[] asm("_binary_exec_html_start");
+extern const uint8_t exec_html_end[] asm("_binary_exec_html_end");
+
 extern const uint8_t style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t style_css_end[] asm("_binary_style_css_end");
 
 extern const uint8_t app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t app_js_end[] asm("_binary_app_js_end");
+
+extern const uint8_t manual_js_start[] asm("_binary_manual_js_start");
+extern const uint8_t manual_js_end[] asm("_binary_manual_js_end");
+
+extern const uint8_t exec_js_start[] asm("_binary_exec_js_start");
+extern const uint8_t exec_js_end[] asm("_binary_exec_js_end");
 
 /**
  * @brief Structure for embedded file mapping
@@ -57,8 +69,12 @@ static const embedded_file_t* get_embedded_file(const char* uri) {
     static const embedded_file_t embedded_files[] = {
         {"/", index_html_start, index_html_end, "text/html"},
         {"/index.html", index_html_start, index_html_end, "text/html"},
+        {"/manual.html", manual_html_start, manual_html_end, "text/html"},
+        {"/exec.html", exec_html_start, exec_html_end, "text/html"},
         {"/style.css", style_css_start, style_css_end, "text/css"},
         {"/app.js", app_js_start, app_js_end, "application/javascript"},
+        {"/manual.js", manual_js_start, manual_js_end, "application/javascript"},
+        {"/exec.js", exec_js_start, exec_js_end, "application/javascript"},
     };
 
     for (size_t i = 0; i < sizeof(embedded_files) / sizeof(embedded_files[0]); i++) {

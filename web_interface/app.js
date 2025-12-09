@@ -1,9 +1,8 @@
 /**
  * @file app.js
- * @brief Main application logic for web interface
+ * @brief Main application logic for index page
  *
- * Handles G-Code upload, validation, visualization, WebSocket communication,
- * and UI interactions for soldering station control.
+ * Handles drill file upload, parsing, preview, and sending to controller.
  */
 
 // DOM elements
@@ -20,21 +19,6 @@ let gcodeContentDisplay;
 let sendBtn;
 let cancelBtn;
 let sendStatus;
-
-// Control elements
-let startBtn;
-let pauseBtn;
-let resumeBtn;
-let stopBtn;
-let controlStatus;
-
-// Manual control elements
-let manualEnterBtn;
-let manualMoveBtn;
-let manualExitBtn;
-let manualXInput;
-let manualYInput;
-let manualStatus;
 
 // Parsed data storage
 let parsedGCode = null;
@@ -58,21 +42,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelBtn = document.getElementById('cancel-btn');
     sendStatus = document.getElementById('send-status');
 
-    // Control elements
-    startBtn = document.getElementById('start-btn');
-    pauseBtn = document.getElementById('pause-btn');
-    resumeBtn = document.getElementById('resume-btn');
-    stopBtn = document.getElementById('stop-btn');
-    controlStatus = document.getElementById('control-status');
-
-    // Manual control elements
-    manualEnterBtn = document.getElementById('manual-enter-btn');
-    manualMoveBtn = document.getElementById('manual-move-btn');
-    manualExitBtn = document.getElementById('manual-exit-btn');
-    manualXInput = document.getElementById('manual-x');
-    manualYInput = document.getElementById('manual-y');
-    manualStatus = document.getElementById('manual-status');
-
     uploadBtn.disabled = true;
 
     // Add event listeners
@@ -90,34 +59,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cancelBtn) {
         cancelBtn.addEventListener('click', handleCancel);
-    }
-
-    if (startBtn) {
-        startBtn.addEventListener('click', handleStart);
-    }
-
-    if (pauseBtn) {
-        pauseBtn.addEventListener('click', handlePause);
-    }
-
-    if (resumeBtn) {
-        resumeBtn.addEventListener('click', handleResume);
-    }
-
-    if (stopBtn) {
-        stopBtn.addEventListener('click', handleStop);
-    }
-
-    if (manualEnterBtn) {
-        manualEnterBtn.addEventListener('click', handleManualEnter);
-    }
-
-    if (manualMoveBtn) {
-        manualMoveBtn.addEventListener('click', handleManualMove);
-    }
-
-    if (manualExitBtn) {
-        manualExitBtn.addEventListener('click', handleManualExit);
     }
 });
 
@@ -230,13 +171,13 @@ async function handleSendToController() {
         if (response.ok) {
             const result = await response.json();
             const commandCount = cleanGCode.split('\n').length;
-            sendStatus.textContent = `Success: G-Code uploaded to controller (${commandCount} commands)`;
+            sendStatus.textContent = `Success: G-Code uploaded to controller (${commandCount} commands). Redirecting to execution control...`;
             sendStatus.className = 'upload-status success';
 
-            // Enable start button
-            if (startBtn) {
-                startBtn.disabled = false;
-            }
+            // Redirect to execution control page after a short delay
+            setTimeout(() => {
+                window.location.href = 'exec.html';
+            }, 1500);
 
         } else {
             const error = await response.json();
@@ -248,153 +189,6 @@ async function handleSendToController() {
         sendStatus.textContent = `Error: ${error.message}`;
         sendStatus.className = 'upload-status error';
         sendBtn.disabled = false;
-    }
-}
-
-/**
- * Handle start button click
- */
-async function handleStart() {
-    controlStatus.textContent = 'Starting execution...';
-    controlStatus.className = 'upload-status info';
-
-    try {
-        const response = await fetch('/api/gcode/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            controlStatus.textContent = 'Execution started';
-            controlStatus.className = 'upload-status success';
-
-            resetUploadForm();
-            
-            // Update button states
-            startBtn.disabled = true;
-            pauseBtn.disabled = false;
-            resumeBtn.disabled = true;
-            stopBtn.disabled = false;
-
-        } else {
-            const error = await response.json();
-            controlStatus.textContent = `Error: ${error.message || 'Failed to start'}`;
-            controlStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        controlStatus.textContent = `Error: ${error.message}`;
-        controlStatus.className = 'upload-status error';
-    }
-}
-
-/**
- * Handle pause button click
- */
-async function handlePause() {
-    controlStatus.textContent = 'Pausing execution...';
-    controlStatus.className = 'upload-status info';
-
-    try {
-        const response = await fetch('/api/gcode/pause', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            controlStatus.textContent = 'Execution paused';
-            controlStatus.className = 'upload-status success';
-
-            // Update button states
-            pauseBtn.disabled = true;
-            resumeBtn.disabled = false;
-        } else {
-            const error = await response.json();
-            controlStatus.textContent = `Error: ${error.message || 'Failed to pause'}`;
-            controlStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        controlStatus.textContent = `Error: ${error.message}`;
-        controlStatus.className = 'upload-status error';
-    }
-}
-
-/**
- * Handle resume button click
- */
-async function handleResume() {
-    controlStatus.textContent = 'Resuming execution...';
-    controlStatus.className = 'upload-status info';
-
-    try {
-        const response = await fetch('/api/gcode/resume', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            controlStatus.textContent = 'Execution resumed';
-            controlStatus.className = 'upload-status success';
-
-            // Update button states
-            pauseBtn.disabled = false;
-            resumeBtn.disabled = true;
-        } else {
-            const error = await response.json();
-            controlStatus.textContent = `Error: ${error.message || 'Failed to resume'}`;
-            controlStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        controlStatus.textContent = `Error: ${error.message}`;
-        controlStatus.className = 'upload-status error';
-    }
-}
-
-/**
- * Handle stop button click
- */
-async function handleStop() {
-    controlStatus.textContent = 'Stopping execution...';
-    controlStatus.className = 'upload-status info';
-
-    try {
-        const response = await fetch('/api/gcode/stop', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            controlStatus.textContent = 'Execution stopped';
-            controlStatus.className = 'upload-status success';
-
-            // Reset button states
-            startBtn.disabled = false;
-            pauseBtn.disabled = true;
-            resumeBtn.disabled = true;
-            stopBtn.disabled = true;
-
-            setTimeout(() => {
-                controlStatus.textContent = '';
-            }, 3000);
-        } else {
-            const error = await response.json();
-            controlStatus.textContent = `Error: ${error.message || 'Failed to stop'}`;
-            controlStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        controlStatus.textContent = `Error: ${error.message}`;
-        controlStatus.className = 'upload-status error';
     }
 }
 
@@ -441,16 +235,6 @@ function resetUploadForm() {
     uploadStatus.textContent = '';
     uploadStatus.className = 'upload-status';
     hidePreview();
-
-    // Reset control buttons
-    if (startBtn) startBtn.disabled = true;
-    if (pauseBtn) pauseBtn.disabled = true;
-    if (resumeBtn) resumeBtn.disabled = true;
-    if (stopBtn) stopBtn.disabled = true;
-    if (controlStatus) {
-        controlStatus.textContent = '';
-        controlStatus.className = 'upload-status';
-    }
 }
 
 /**
@@ -536,114 +320,4 @@ function parseDrillToGCode(drillContent) {
     gcode.push('; === End of Program ===');
 
     return gcode.join('\n');
-}
-
-/**
- * Handle manual control mode entry
- */
-async function handleManualEnter() {
-    manualStatus.textContent = 'Entering manual control mode...';
-    manualStatus.className = 'upload-status';
-
-    try {
-        const response = await fetch('/api/manual/enter', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            manualStatus.textContent = 'Manual control mode activated';
-            manualStatus.className = 'upload-status success';
-            
-            // Enable move and exit buttons
-            manualEnterBtn.disabled = true;
-            manualMoveBtn.disabled = false;
-            manualExitBtn.disabled = false;
-        } else {
-            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
-            manualStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        manualStatus.textContent = 'Error: ' + error.message;
-        manualStatus.className = 'upload-status error';
-    }
-}
-
-/**
- * Handle manual move command
- */
-async function handleManualMove() {
-    const x = parseFloat(manualXInput.value);
-    const y = parseFloat(manualYInput.value);
-
-    if (isNaN(x) || isNaN(y)) {
-        manualStatus.textContent = 'Error: Invalid coordinates';
-        manualStatus.className = 'upload-status error';
-        return;
-    }
-
-    manualStatus.textContent = `Moving to X=${x.toFixed(2)}, Y=${y.toFixed(2)}...`;
-    manualStatus.className = 'upload-status';
-
-    try {
-        const response = await fetch('/api/manual/move', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ x: x, y: y })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            manualStatus.textContent = `Command sent: Move to X=${x.toFixed(2)}, Y=${y.toFixed(2)}`;
-            manualStatus.className = 'upload-status success';
-        } else {
-            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to send move command');
-            manualStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        manualStatus.textContent = 'Error: ' + error.message;
-        manualStatus.className = 'upload-status error';
-    }
-}
-
-/**
- * Handle manual control mode exit
- */
-async function handleManualExit() {
-    manualStatus.textContent = 'Exiting manual control mode...';
-    manualStatus.className = 'upload-status';
-
-    try {
-        const response = await fetch('/api/manual/exit', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            manualStatus.textContent = 'Exited manual control mode';
-            manualStatus.className = 'upload-status success';
-            
-            // Reset buttons
-            manualEnterBtn.disabled = false;
-            manualMoveBtn.disabled = true;
-            manualExitBtn.disabled = true;
-        } else {
-            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to exit manual mode');
-            manualStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        manualStatus.textContent = 'Error: ' + error.message;
-        manualStatus.className = 'upload-status error';
-    }
 }
