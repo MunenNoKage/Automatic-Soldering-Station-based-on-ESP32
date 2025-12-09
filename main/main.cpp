@@ -200,6 +200,72 @@ static bool on_enter_idle(void* user_data) {
     return true;
 }
 
+static bool on_enter_manual_control(void* user_data) {
+    ESP_LOGI(TAG, "FSM: MANUAL_CONTROL - Ready for manual commands");
+    return true;
+}
+
+static bool on_enter_manual_executing(void* user_data) {
+    ESP_LOGI(TAG, "FSM: MANUAL_EXECUTING - Executing manual movement");
+    
+    // Enable motors
+    motor_x->setEnable(true);
+    motor_y->setEnable(true);
+    motor_z->setEnable(true);
+    
+    return true;
+}
+
+static bool on_execute_manual_executing(void* user_data) {
+    fsm_execution_context_t* ctx = fsm_controller_get_execution_context(fsm_handle);
+    if (!ctx) return false;
+    
+    // Only execute once per entry to this state
+    if (ctx->operation_complete) {
+        return true;
+    }
+    
+    // Check if GCode command is available
+    if (!g_gcode_loaded || !g_gcode_buffer) {
+        ESP_LOGE(TAG, "No manual G-code command available");
+        fsm_controller_post_event(fsm_handle, FSM_EVENT_DATA_ERROR);
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "Executing manual command: %s", g_gcode_buffer);
+    
+    // Initialize execution FSM for manual command
+    execution_config_t exec_config = {
+        .safe_z_height = motor_z->mm_to_microsteps(140),
+        .soldering_z_height = motor_z->mm_to_microsteps(160),
+        .home_x = 0,
+        .home_y = 0,
+        .home_z = 0
+    };
+    exec_sub_fsm_init(&exec_sub_fsm, &exec_config);
+    
+    // Load and parse the single G-code command
+    if (!exec_sub_fsm_load_gcode_from_ram(&exec_sub_fsm, g_gcode_buffer, g_gcode_size)) {
+        ESP_LOGE(TAG, "Failed to parse manual G-code command");
+        fsm_controller_post_event(fsm_handle, FSM_EVENT_DATA_ERROR);
+        return false;
+    }
+    
+    // Execute the command (single line)
+    exec_sub_fsm_process_gcode(&exec_sub_fsm);
+    
+    // Cleanup parser
+    exec_sub_fsm_cleanup_gcode(&exec_sub_fsm);
+    
+    ESP_LOGI(TAG, "Manual movement complete");
+    ctx->operation_complete = true;
+    
+    // Post event to return to MANUAL_CONTROL state
+    fsm_controller_post_event(fsm_handle, FSM_EVENT_MANUAL_MOVE_DONE);
+    
+    return true;
+}
+
 static bool on_enter_calibration(void* user_data) {
     ESP_LOGI(TAG, "FSM: CALIBRATION");
     return true;
@@ -226,7 +292,15 @@ static bool on_execute_calibration(void* user_data) {
         if (time_since_start > 500) {
             ESP_LOGI(TAG, "Calibration complete");
             ctx->operation_complete = true;
-            fsm_controller_post_event(fsm_handle, FSM_EVENT_CALIBRATION_SUCCESS);
+            
+            // Post appropriate event based on mode
+            if (ctx->is_manual_mode) {
+                ESP_LOGI(TAG, "Calibration for manual mode - transitioning to MANUAL_CONTROL");
+                fsm_controller_post_event(fsm_handle, FSM_EVENT_CALIBRATION_DONE);
+            } else {
+                ESP_LOGI(TAG, "Calibration for automatic mode - transitioning to READY");
+                fsm_controller_post_event(fsm_handle, FSM_EVENT_CALIBRATION_SUCCESS);
+            }
         }
     }
 
@@ -509,12 +583,15 @@ static void init_fsm(void) {
 
     // Register callbacks
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_IDLE, on_enter_idle, nullptr);
+    fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_MANUAL_CONTROL, on_enter_manual_control, nullptr);
+    fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_MANUAL_EXECUTING, on_enter_manual_executing, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_CALIBRATION, on_enter_calibration, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_READY, on_enter_ready, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_HEATING, on_enter_heating, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_EXECUTING, on_enter_executing, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_NORMAL_EXIT, on_enter_normal_exit, nullptr);
 
+    fsm_controller_register_execute_callback(fsm_handle, FSM_STATE_MANUAL_EXECUTING, on_execute_manual_executing, nullptr);
     fsm_controller_register_execute_callback(fsm_handle, FSM_STATE_CALIBRATION, on_execute_calibration, nullptr);
     fsm_controller_register_execute_callback(fsm_handle, FSM_STATE_HEATING, on_execute_heating, nullptr);
     fsm_controller_register_execute_callback(fsm_handle, FSM_STATE_EXECUTING, on_execute_executing, nullptr);

@@ -31,12 +31,6 @@ extern const uint8_t style_css_end[] asm("_binary_style_css_end");
 extern const uint8_t app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t app_js_end[] asm("_binary_app_js_end");
 
-extern const uint8_t gcode_validator_js_start[] asm("_binary_gcode_validator_js_start");
-extern const uint8_t gcode_validator_js_end[] asm("_binary_gcode_validator_js_end");
-
-extern const uint8_t visualizer_js_start[] asm("_binary_visualizer_js_start");
-extern const uint8_t visualizer_js_end[] asm("_binary_visualizer_js_end");
-
 /**
  * @brief Structure for embedded file mapping
  */
@@ -65,8 +59,6 @@ static const embedded_file_t* get_embedded_file(const char* uri) {
         {"/index.html", index_html_start, index_html_end, "text/html"},
         {"/style.css", style_css_start, style_css_end, "text/css"},
         {"/app.js", app_js_start, app_js_end, "application/javascript"},
-        {"/gcode_validator.js", gcode_validator_js_start, gcode_validator_js_end, "application/javascript"},
-        {"/visualizer.js", visualizer_js_start, visualizer_js_end, "application/javascript"},
     };
 
     for (size_t i = 0; i < sizeof(embedded_files) / sizeof(embedded_files[0]); i++) {
@@ -640,8 +632,6 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     ESP_LOGI(TAG, "  index.html: %d bytes", index_html_end - index_html_start);
     ESP_LOGI(TAG, "  style.css: %d bytes", style_css_end - style_css_start);
     ESP_LOGI(TAG, "  app.js: %d bytes", app_js_end - app_js_start);
-    ESP_LOGI(TAG, "  gcode_validator.js: %d bytes", gcode_validator_js_end - gcode_validator_js_start);
-    ESP_LOGI(TAG, "  visualizer.js: %d bytes", visualizer_js_end - visualizer_js_start);
 
     // Configure HTTP server
     httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();

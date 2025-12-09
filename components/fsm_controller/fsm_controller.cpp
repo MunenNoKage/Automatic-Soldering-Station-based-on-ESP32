@@ -325,9 +325,16 @@ static bool transition_to_state(fsm_controller_handle_t handle, fsm_state_t new_
     handle->current_state = new_state;
     handle->state_enter_time = get_time_ms();
 
-    // Reset execution context for new state
+    // Reset execution context for new state, but preserve manual mode flag if entering calibration
+    bool preserve_manual_mode = (new_state == FSM_STATE_CALIBRATION) && handle->exec_context.is_manual_mode;
+    bool was_manual_mode = handle->exec_context.is_manual_mode;
+    
     memset(&handle->exec_context, 0, sizeof(fsm_execution_context_t));
     handle->exec_context.start_time_ms = get_time_ms();
+    
+    if (preserve_manual_mode) {
+        handle->exec_context.is_manual_mode = was_manual_mode;
+    }
 
     if (handle->config.enable_logging) {
         ESP_LOGI(TAG, "State transition: %s -> %s",
@@ -362,6 +369,13 @@ void fsm_controller_process(fsm_controller_handle_t handle) {
                 ESP_LOGI(TAG, "Processing event: %s in state: %s",
                          event_names[event], state_names[handle->current_state]);
             }
+            
+            // Set manual mode flag when entering calibration from manual mode selection
+            if (event == FSM_EVENT_SELECT_MANUAL && next_state == FSM_STATE_CALIBRATION) {
+                handle->exec_context.is_manual_mode = true;
+                ESP_LOGI(TAG, "Manual mode flag set for calibration");
+            }
+            
             transition_to_state(handle, next_state);
         } else {
             ESP_LOGW(TAG, "Invalid transition: event %s not valid in state %s",

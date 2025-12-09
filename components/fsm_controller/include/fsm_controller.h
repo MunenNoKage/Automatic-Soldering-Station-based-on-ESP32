@@ -115,6 +115,7 @@ typedef struct {
     uint32_t start_time_ms;             // Operation start time
     uint32_t iteration_count;            // Number of iterations/steps completed
     bool operation_complete;             // Flag indicating completion
+    bool is_manual_mode;                 // True if calibrating for manual mode
     void* user_context;                  // User-defined context data
 } fsm_execution_context_t;
 
