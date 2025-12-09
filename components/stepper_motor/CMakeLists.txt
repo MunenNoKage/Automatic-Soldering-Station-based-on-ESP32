@@ -11,6 +11,7 @@ idf_component_register(
         esp_driver_gpio
         freertos
         esp_system
+        esp_hal_wdt
     PRIV_REQUIRES 
         driver 
         esp_timer

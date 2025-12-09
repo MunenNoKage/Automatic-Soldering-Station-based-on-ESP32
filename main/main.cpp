@@ -115,7 +115,7 @@ static void init_motors() {
         .k_slope = 0.0,
         .minimal_step_delay_us = 600
     };
-    motor_s = new StepperMotor(config_s, CONFIG_MOTOR_S_MICROSTEPS_IN_MM, STEPPER_DIR_CLOCKWISE);
+    motor_s = new StepperMotor(config_s, CONFIG_MOTOR_S_MICROSTEPS_IN_MM, STEPPER_DIR_COUNTERCLOCKWISE);
     if (!motor_s->isInitialized()) {
         ESP_LOGE(TAG, "Failed to initialize solder supply motor");
         return;

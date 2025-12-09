@@ -26,6 +26,7 @@ typedef enum {
     FSM_STATE_INIT = 0,              // Initial power-on state (Ash)
     FSM_STATE_IDLE,                  // Idle/standby state (Yellow)
     FSM_STATE_MANUAL_CONTROL,        // Manual control mode (Other)
+    FSM_STATE_MANUAL_EXECUTING,      // Executing manual movement (Green)
     FSM_STATE_CALIBRATION,           // Calibration process (Green)
     FSM_STATE_READY,                 // Ready to execute (Yellow)
     FSM_STATE_HEATING,               // Heating soldering iron (Green)
@@ -46,6 +47,8 @@ typedef enum {
     FSM_EVENT_INIT_DONE = 0,         // Initialization completed
     FSM_EVENT_SELECT_MANUAL,         // User selected manual control
     FSM_EVENT_EXIT_MANUAL,           // Exit manual control
+    FSM_EVENT_MANUAL_COMMAND_SENT,   // Manual G-code command sent
+    FSM_EVENT_MANUAL_MOVE_DONE,      // Manual movement completed
     FSM_EVENT_TASK_SENT,             // New task was sent
     FSM_EVENT_REQUEST_CALIBRATION,   // Calibration requested
     FSM_EVENT_CALIBRATION_SUCCESS,   // Calibration successful
