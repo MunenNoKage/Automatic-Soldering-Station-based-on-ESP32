@@ -20,7 +20,7 @@
 
     <main>
         <section id="gcode-section">
-            <h2>Drill file Upload</h2>
+            <h2>Automatic soldering</h2>
             <div class="upload-container">
                 <input type="file" id="drill-file-input" accept=".DRL" />
                 <label for="drill-file-input" class="file-label">Choose .DRL file</label>
@@ -31,7 +31,16 @@
         </section>
 
         <section id="preview-section" style="display: none;">
-            <h2>File Preview</h2>
+            <h2>Board Preview</h2>
+            <div class="visualization-container">
+                <div class="canvas-wrapper">
+                    <canvas id="board-canvas" width="800" height="600"></canvas>
+                </div>
+                <div class="visualization-info">
+                    <span id="drill-count">0 holes</span>
+                    <span id="board-dimensions">Board: 0x0 mm</span>
+                </div>
+            </div>
             <div class="preview-container">
                 <div class="preview-pane">
                     <h3>Drill File Content</h3>
@@ -49,10 +58,9 @@
             <div id="send-status" class="upload-status"></div>
         </section>
 
-        <section id="navigation-section">
-            <div class="nav-buttons">
-                <button id="btn-manual" class="btn-nav">Manual Control</button>
-            </div>
+        <section id="manual-section">
+            <h2>Manual Control</h2>
+            <button id="btn-manual" class="btn-nav">Enter Manual Control</button>
         </section>
     </main>
 

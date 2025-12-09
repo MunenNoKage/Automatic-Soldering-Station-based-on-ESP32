@@ -14,6 +14,21 @@ let manualYInput;
 let manualZInput;
 let manualStatus;
 
+// Canvas elements
+let boardCanvas = null;
+let boardCtx = null;
+let currentPositionDisplay = null;
+let boardDimensionsDisplay = null;
+
+// Visualization data
+let currentPosition = { x: 0, y: 0, z: 0 };
+let targetPosition = { x: 0, y: 0, z: 0 };
+let positionUpdateInterval = null;
+
+// Board dimensions (configurable based on your setup)
+const BOARD_WIDTH = 200;  // mm
+const BOARD_HEIGHT = 150; // mm
+
 /**
  * Initialize the manual control page
  */
@@ -27,6 +42,14 @@ document.addEventListener('DOMContentLoaded', function() {
     manualZInput = document.getElementById('manual-z');
     manualStatus = document.getElementById('manual-status');
 
+    // Canvas elements
+    boardCanvas = document.getElementById('board-canvas');
+    if (boardCanvas) {
+        boardCtx = boardCanvas.getContext('2d');
+    }
+    currentPositionDisplay = document.getElementById('current-position');
+    boardDimensionsDisplay = document.getElementById('board-dimensions');
+
     // Add event listeners
     if (manualEnterBtn) {
         manualEnterBtn.addEventListener('click', handleManualEnter);
@@ -39,6 +62,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (manualExitBtn) {
         manualExitBtn.addEventListener('click', handleManualExit);
     }
+
+    // Initialize visualization
+    drawBoard();
+    
+    // Start position polling
+    startPositionPolling();
 });
 
 /**
@@ -89,6 +118,9 @@ async function handleManualMove() {
         manualStatus.className = 'upload-status error';
         return;
     }
+
+    // Update target position for visualization
+    targetPosition = { x, y, z };
 
     manualStatus.textContent = `Moving to X=${x.toFixed(2)}, Y=${y.toFixed(2)}, Z=${z.toFixed(2)}...`;
     manualStatus.className = 'upload-status';
@@ -151,3 +183,196 @@ async function handleManualExit() {
         manualStatus.className = 'upload-status error';
     }
 }
+
+/**
+ * Start polling for position updates
+ */
+function startPositionPolling() {
+    if (positionUpdateInterval) {
+        clearInterval(positionUpdateInterval);
+    }
+
+    positionUpdateInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/status/position');
+            if (response.ok) {
+                const position = await response.json();
+                currentPosition = position;
+                
+                if (currentPositionDisplay) {
+                    currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
+                }
+                
+                if (boardCanvas) {
+                    updateVisualization();
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching position:', error);
+        }
+    }, 500);
+}
+
+/**
+ * Stop position polling
+ */
+function stopPositionPolling() {
+    if (positionUpdateInterval) {
+        clearInterval(positionUpdateInterval);
+        positionUpdateInterval = null;
+    }
+}
+
+/**
+ * Draw the board with fixed dimensions
+ */
+function drawBoard() {
+    if (!boardCtx) return;
+
+    // Store visualization parameters globally
+    window.manualVisualizationParams = {
+        minX: 0,
+        minY: 0,
+        maxX: BOARD_WIDTH,
+        maxY: BOARD_HEIGHT,
+        boardWidth: BOARD_WIDTH,
+        boardHeight: BOARD_HEIGHT
+    };
+
+    if (boardDimensionsDisplay) {
+        boardDimensionsDisplay.textContent = `${BOARD_WIDTH}mm × ${BOARD_HEIGHT}mm`;
+    }
+
+    updateVisualization();
+}
+
+/**
+ * Update visualization with current and target positions
+ */
+function updateVisualization() {
+    if (!boardCtx || !window.manualVisualizationParams) return;
+
+    const canvas = boardCanvas;
+    const ctx = boardCtx;
+    const params = window.manualVisualizationParams;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Add padding
+    const padding = 40;
+    const drawWidth = canvas.width - 2 * padding;
+    const drawHeight = canvas.height - 2 * padding;
+
+    // Calculate scale
+    const scaleX = drawWidth / params.boardWidth;
+    const scaleY = drawHeight / params.boardHeight;
+    const scale = Math.min(scaleX, scaleY);
+
+    // Center the board
+    const boardPixelWidth = params.boardWidth * scale;
+    const boardPixelHeight = params.boardHeight * scale;
+    const offsetX = padding + (drawWidth - boardPixelWidth) / 2;
+    const offsetY = padding + (drawHeight - boardPixelHeight) / 2;
+
+    // Helper function to convert world coordinates to canvas coordinates
+    const worldToCanvas = (worldX, worldY) => {
+        const canvasX = offsetX + (worldX - params.minX) * scale;
+        const canvasY = offsetY + (worldY - params.minY) * scale;
+        return { x: canvasX, y: canvasY };
+    };
+
+    // Draw PCB background
+    ctx.fillStyle = '#2d5016';
+    ctx.fillRect(offsetX, offsetY, boardPixelWidth, boardPixelHeight);
+
+    // Draw grid
+    ctx.strokeStyle = '#3d6020';
+    ctx.lineWidth = 0.5;
+    const gridSpacing = 10; // 10mm grid
+
+    for (let x = Math.ceil(params.minX / gridSpacing) * gridSpacing; x <= params.maxX; x += gridSpacing) {
+        const canvasPos = worldToCanvas(x, params.minY);
+        ctx.beginPath();
+        ctx.moveTo(canvasPos.x, offsetY);
+        ctx.lineTo(canvasPos.x, offsetY + boardPixelHeight);
+        ctx.stroke();
+    }
+
+    for (let y = Math.ceil(params.minY / gridSpacing) * gridSpacing; y <= params.maxY; y += gridSpacing) {
+        const canvasPos = worldToCanvas(params.minX, y);
+        ctx.beginPath();
+        ctx.moveTo(offsetX, canvasPos.y);
+        ctx.lineTo(offsetX + boardPixelWidth, canvasPos.y);
+        ctx.stroke();
+    }
+
+    // Draw origin marker
+    const origin = worldToCanvas(0, 0);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(origin.x - 10, origin.y);
+    ctx.lineTo(origin.x + 10, origin.y);
+    ctx.moveTo(origin.x, origin.y - 10);
+    ctx.lineTo(origin.x, origin.y + 10);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px monospace';
+    ctx.fillText('(0,0)', origin.x + 12, origin.y - 5);
+
+    // Draw target position (if set)
+    const currentPos = worldToCanvas(currentPosition.x, currentPosition.y);
+    const targetPos = worldToCanvas(targetPosition.x, targetPosition.y);
+    
+    // Calculate distance between current and target
+    const dx = targetPosition.x - currentPosition.x;
+    const dy = targetPosition.y - currentPosition.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Draw line from current to target if they're different
+    if (distance > 1) {
+        ctx.strokeStyle = '#0066ff';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(currentPos.x, currentPos.y);
+        ctx.lineTo(targetPos.x, targetPos.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Draw target position marker (blue dashed circle)
+    if (distance > 1) {
+        ctx.strokeStyle = '#0066ff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(targetPos.x, targetPos.y, 12, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Draw current position marker (red crosshair)
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(currentPos.x - 10, currentPos.y);
+    ctx.lineTo(currentPos.x + 10, currentPos.y);
+    ctx.moveTo(currentPos.x, currentPos.y - 10);
+    ctx.lineTo(currentPos.x, currentPos.y + 10);
+    ctx.stroke();
+
+    // Red circle
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(currentPos.x, currentPos.y, 8, 0, 2 * Math.PI);
+    ctx.stroke();
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    stopPositionPolling();
+});

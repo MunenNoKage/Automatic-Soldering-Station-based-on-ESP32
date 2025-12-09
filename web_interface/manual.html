@@ -18,6 +18,17 @@
     </header>
 
     <main>
+        <section id="visualization-section">
+            <div class="visualization-container">
+                <div class="canvas-wrapper">
+                    <canvas id="board-canvas" width="800" height="600"></canvas>
+                </div>
+                <div class="visualization-info">
+                    <span id="current-position">Position: X=0.0, Y=0.0, Z=0.0 mm</span>
+                    <span id="board-dimensions">Board: 0×0 mm</span>
+                </div>
+            </div>
+        </section>
         <section id="manual-control-section">
             <h2>Manual Control</h2>
             <div class="manual-controls">
@@ -32,7 +43,7 @@
                     </div>
                     <div class="input-group">
                         <label for="manual-z">Z Coordinate (mm):</label>
-                        <input type="number" id="manual-z" step="0.1" value="140" />
+                        <input type="number" id="manual-z" step="0.1" value="0" />
                     </div>
                 </div>
                 <div class="manual-buttons">

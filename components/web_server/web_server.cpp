@@ -12,8 +12,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "gcode_parser.h"
+#include "StepperMotor.hpp"
 
 static const char *TAG = "WEB_SERVER";
+
+// External motor objects (defined in main.cpp)
+extern StepperMotor* motor_x;
+extern StepperMotor* motor_y;
+extern StepperMotor* motor_z;
 
 // External GCode RAM buffer (defined in main.cpp)
 extern char* g_gcode_buffer;
@@ -624,6 +630,40 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
 }
 
 /**
+ * @brief Handler for position status endpoint
+ */
+static esp_err_t position_status_handler(httpd_req_t *req) {
+    // Get current motor positions in microsteps and convert to millimeters
+    float x_mm = 0.0f;
+    float y_mm = 0.0f;
+    float z_mm = 0.0f;
+
+    if (motor_x && motor_x->isInitialized()) {
+        x_mm = motor_x->microsteps_to_mm(motor_x->getPosition());
+    }
+
+    if (motor_y && motor_y->isInitialized()) {
+        y_mm = motor_y->microsteps_to_mm(motor_y->getPosition());
+    }
+
+    if (motor_z && motor_z->isInitialized()) {
+        z_mm = motor_z->microsteps_to_mm(motor_z->getPosition());
+    }
+
+    // Format JSON response
+    char json[128];
+    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}", x_mm, y_mm, z_mm);
+
+    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm", x_mm, y_mm, z_mm);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    return ESP_OK;
+}
+
+/**
  * @brief Handler for OPTIONS requests (CORS preflight)
  */
 static esp_err_t options_handler(httpd_req_t *req) {
@@ -772,6 +812,15 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &motor_status_uri);
+
+    // Position status endpoint
+    httpd_uri_t position_status_uri = {
+        .uri = "/api/status/position",
+        .method = HTTP_GET,
+        .handler = position_status_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &position_status_uri);
 
     // CORS preflight handler
     httpd_uri_t options_uri = {
