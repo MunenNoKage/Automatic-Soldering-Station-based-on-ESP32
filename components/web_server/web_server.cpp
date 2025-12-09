@@ -31,12 +31,6 @@ extern const uint8_t style_css_end[] asm("_binary_style_css_end");
 extern const uint8_t app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t app_js_end[] asm("_binary_app_js_end");
 
-extern const uint8_t gcode_validator_js_start[] asm("_binary_gcode_validator_js_start");
-extern const uint8_t gcode_validator_js_end[] asm("_binary_gcode_validator_js_end");
-
-extern const uint8_t visualizer_js_start[] asm("_binary_visualizer_js_start");
-extern const uint8_t visualizer_js_end[] asm("_binary_visualizer_js_end");
-
 /**
  * @brief Structure for embedded file mapping
  */
@@ -65,8 +59,6 @@ static const embedded_file_t* get_embedded_file(const char* uri) {
         {"/index.html", index_html_start, index_html_end, "text/html"},
         {"/style.css", style_css_start, style_css_end, "text/css"},
         {"/app.js", app_js_start, app_js_end, "application/javascript"},
-        {"/gcode_validator.js", gcode_validator_js_start, gcode_validator_js_end, "application/javascript"},
-        {"/visualizer.js", visualizer_js_start, visualizer_js_end, "application/javascript"},
     };
 
     for (size_t i = 0; i < sizeof(embedded_files) / sizeof(embedded_files[0]); i++) {
@@ -455,6 +447,153 @@ static esp_err_t gcode_resume_handler(httpd_req_t *req) {
 }
 
 /**
+ * @brief Handler for entering manual control mode
+ */
+static esp_err_t manual_enter_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Manual control mode entry request received");
+
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_SELECT_MANUAL)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_SELECT_MANUAL to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_SELECT_MANUAL");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Entering manual control mode\"}"
+        : "{\"success\":false,\"message\":\"Failed to enter manual control mode\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for exiting manual control mode
+ */
+static esp_err_t manual_exit_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Manual control mode exit request received");
+
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_EXIT_MANUAL)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_EXIT_MANUAL to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_EXIT_MANUAL");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Exiting manual control mode\"}"
+        : "{\"success\":false,\"message\":\"Failed to exit manual control mode\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for manual move command
+ */
+static esp_err_t manual_move_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Manual move request received");
+
+    char buf[256];
+    int ret, remaining = req->content_len;
+
+    if (remaining >= sizeof(buf)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Request too large");
+        return ESP_FAIL;
+    }
+
+    ret = (remaining < sizeof(buf) - 1) ? httpd_req_recv(req, buf, remaining) : httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+    buf[ret] = '\0';
+
+    // Parse JSON to extract X and Y coordinates
+    // Simple parsing - expecting: {"x": 10.5, "y": 20.3}
+    float x = 0.0f, y = 0.0f;
+    char* x_pos = strstr(buf, "\"x\"");
+    char* y_pos = strstr(buf, "\"y\"");
+    
+    if (x_pos) {
+        x_pos = strchr(x_pos, ':');
+        if (x_pos) {
+            x = atof(x_pos + 1);
+        }
+    }
+    
+    if (y_pos) {
+        y_pos = strchr(y_pos, ':');
+        if (y_pos) {
+            y = atof(y_pos + 1);
+        }
+    }
+
+    ESP_LOGI(TAG, "Manual move to X=%.2f, Y=%.2f", x, y);
+
+    // Generate G-code command for manual movement
+    char gcode_cmd[64];
+    snprintf(gcode_cmd, sizeof(gcode_cmd), "G0 X%.2f Y%.2f", x, y);
+
+    // Store in global G-code buffer (single command)
+    if (xSemaphoreTake(g_gcode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        if (g_gcode_buffer) {
+            free(g_gcode_buffer);
+        }
+        g_gcode_buffer = strdup(gcode_cmd);
+        g_gcode_size = strlen(gcode_cmd);
+        g_gcode_loaded = true;
+        xSemaphoreGive(g_gcode_mutex);
+
+        ESP_LOGI(TAG, "Manual G-code stored: %s", gcode_cmd);
+    } else {
+        ESP_LOGE(TAG, "Failed to acquire G-code mutex");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Mutex timeout");
+        return ESP_FAIL;
+    }
+
+    // Post FSM event for manual command sent
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_COMMAND_SENT)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_COMMAND_SENT to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_COMMAND_SENT");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Manual move command accepted\"}"
+        : "{\"success\":false,\"message\":\"Failed to send move command\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
  * @brief Handler for OPTIONS requests (CORS preflight)
  */
 static esp_err_t options_handler(httpd_req_t *req) {
@@ -493,8 +632,6 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     ESP_LOGI(TAG, "  index.html: %d bytes", index_html_end - index_html_start);
     ESP_LOGI(TAG, "  style.css: %d bytes", style_css_end - style_css_start);
     ESP_LOGI(TAG, "  app.js: %d bytes", app_js_end - app_js_start);
-    ESP_LOGI(TAG, "  gcode_validator.js: %d bytes", gcode_validator_js_end - gcode_validator_js_start);
-    ESP_LOGI(TAG, "  visualizer.js: %d bytes", visualizer_js_end - visualizer_js_start);
 
     // Configure HTTP server
     httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
@@ -563,6 +700,31 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &gcode_resume_uri);
+
+    // Manual control endpoints
+    httpd_uri_t manual_enter_uri = {
+        .uri = "/api/manual/enter",
+        .method = HTTP_POST,
+        .handler = manual_enter_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_enter_uri);
+
+    httpd_uri_t manual_exit_uri = {
+        .uri = "/api/manual/exit",
+        .method = HTTP_POST,
+        .handler = manual_exit_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_exit_uri);
+
+    httpd_uri_t manual_move_uri = {
+        .uri = "/api/manual/move",
+        .method = HTTP_POST,
+        .handler = manual_move_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_move_uri);
 
     // Motor control endpoints
     httpd_uri_t motor_control_uri = {

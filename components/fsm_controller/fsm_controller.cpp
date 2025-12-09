@@ -70,16 +70,22 @@ static const state_transition_t state_transitions[] = {
     {FSM_STATE_INIT, FSM_EVENT_INIT_DONE, FSM_STATE_IDLE},
 
     // From IDLE
-    {FSM_STATE_IDLE, FSM_EVENT_SELECT_MANUAL, FSM_STATE_MANUAL_CONTROL},
+    {FSM_STATE_IDLE, FSM_EVENT_SELECT_MANUAL, FSM_STATE_CALIBRATION},
     {FSM_STATE_IDLE, FSM_EVENT_TASK_SENT, FSM_STATE_CALIBRATION},
     {FSM_STATE_IDLE, FSM_EVENT_REQUEST_CALIBRATION, FSM_STATE_CALIBRATION},
 
     // From MANUAL_CONTROL
     {FSM_STATE_MANUAL_CONTROL, FSM_EVENT_EXIT_MANUAL, FSM_STATE_IDLE},
+    {FSM_STATE_MANUAL_CONTROL, FSM_EVENT_MANUAL_COMMAND_SENT, FSM_STATE_MANUAL_EXECUTING},
+
+    // From MANUAL_EXECUTING
+    {FSM_STATE_MANUAL_EXECUTING, FSM_EVENT_MANUAL_MOVE_DONE, FSM_STATE_MANUAL_CONTROL},
+    {FSM_STATE_MANUAL_EXECUTING, FSM_EVENT_DATA_ERROR, FSM_STATE_DATA_ERROR},
 
     // From CALIBRATION
     {FSM_STATE_CALIBRATION, FSM_EVENT_CALIBRATION_SUCCESS, FSM_STATE_READY},
     {FSM_STATE_CALIBRATION, FSM_EVENT_CALIBRATION_ERROR, FSM_STATE_CALIBRATION_ERROR},
+    {FSM_STATE_CALIBRATION, FSM_EVENT_CALIBRATION_DONE, FSM_STATE_MANUAL_CONTROL},
 
     // From READY
     {FSM_STATE_READY, FSM_EVENT_CANCEL_TASK, FSM_STATE_IDLE},
@@ -119,6 +125,7 @@ static const char* state_names[] = {
     "INIT",
     "IDLE",
     "MANUAL_CONTROL",
+    "MANUAL_EXECUTING",
     "CALIBRATION",
     "READY",
     "HEATING",
@@ -138,6 +145,8 @@ static const char* event_names[] = {
     "INIT_DONE",
     "SELECT_MANUAL",
     "EXIT_MANUAL",
+    "MANUAL_COMMAND_SENT",
+    "MANUAL_MOVE_DONE",
     "TASK_SENT",
     "REQUEST_CALIBRATION",
     "CALIBRATION_SUCCESS",
@@ -316,9 +325,16 @@ static bool transition_to_state(fsm_controller_handle_t handle, fsm_state_t new_
     handle->current_state = new_state;
     handle->state_enter_time = get_time_ms();
 
-    // Reset execution context for new state
+    // Reset execution context for new state, but preserve manual mode flag if entering calibration
+    bool preserve_manual_mode = (new_state == FSM_STATE_CALIBRATION) && handle->exec_context.is_manual_mode;
+    bool was_manual_mode = handle->exec_context.is_manual_mode;
+    
     memset(&handle->exec_context, 0, sizeof(fsm_execution_context_t));
     handle->exec_context.start_time_ms = get_time_ms();
+    
+    if (preserve_manual_mode) {
+        handle->exec_context.is_manual_mode = was_manual_mode;
+    }
 
     if (handle->config.enable_logging) {
         ESP_LOGI(TAG, "State transition: %s -> %s",
@@ -353,6 +369,13 @@ void fsm_controller_process(fsm_controller_handle_t handle) {
                 ESP_LOGI(TAG, "Processing event: %s in state: %s",
                          event_names[event], state_names[handle->current_state]);
             }
+            
+            // Set manual mode flag when entering calibration from manual mode selection
+            if (event == FSM_EVENT_SELECT_MANUAL && next_state == FSM_STATE_CALIBRATION) {
+                handle->exec_context.is_manual_mode = true;
+                ESP_LOGI(TAG, "Manual mode flag set for calibration");
+            }
+            
             transition_to_state(handle, next_state);
         } else {
             ESP_LOGW(TAG, "Invalid transition: event %s not valid in state %s",
@@ -412,6 +435,7 @@ fsm_state_color_t fsm_controller_get_state_color(fsm_state_t state) {
         case FSM_STATE_CALIBRATION:
         case FSM_STATE_HEATING:
         case FSM_STATE_EXECUTING:
+        case FSM_STATE_MANUAL_EXECUTING:
         case FSM_STATE_NORMAL_EXIT:
             return FSM_COLOR_YELLOW;
 

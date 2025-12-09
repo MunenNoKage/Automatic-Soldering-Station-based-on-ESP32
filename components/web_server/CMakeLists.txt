@@ -8,7 +8,5 @@ idf_component_register(
         "../../web_interface/index.html"
         "../../web_interface/style.css"
         "../../web_interface/app.js"
-        "../../web_interface/gcode_validator.js"
-        "../../web_interface/visualizer.js"
     REQUIRES esp_http_server fsm_controller gcode_parser
 )
