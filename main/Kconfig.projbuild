@@ -9,15 +9,9 @@ menu "Automatic Soldering Station Configuration"
     menu "WiFi Configuration"
         config WIFI_SSID
             string "WiFi SSID"
-            default "SolderingStation"
+            default "Паяйко"
             help
                 SSID for the WiFi Access Point
-
-        config WIFI_PASSWORD
-            string "WiFi Password"
-            default "soldering123"
-            help
-                Password for WiFi AP (min 8 characters)
 
         config WIFI_CHANNEL
             int "WiFi Channel"
@@ -32,6 +26,26 @@ menu "Automatic Soldering Station Configuration"
             range 1 4
             help
                 Maximum number of simultaneous client connections
+    endmenu
+
+    menu "Max Motors Positions"
+        config MOTOR_X_MAX_POSITION
+            int "X-Axis Maximum Position (mm)"
+            default 250
+            help
+                Maximum travel distance for X-axis in millimeters
+        
+        config MOTOR_Y_MAX_POSITION
+            int "Y-Axis Maximum Position (mm)"
+            default 210
+            help
+                Maximum travel distance for Y-axis in millimeters
+        
+        config MOTOR_Z_MAX_POSITION
+            int "Z-Axis Maximum Position (mm)"
+            default 180
+            help
+                Maximum travel distance for Z-axis in millimeters
     endmenu
 
     menu "Stepper Motor Pins - X Axis"

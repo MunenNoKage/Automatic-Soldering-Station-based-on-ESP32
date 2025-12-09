@@ -618,7 +618,7 @@ static void fsm_task(void* pvParameters) {
 static void init_webserver() {
     ESP_LOGI(TAG, "Initializing WiFi Access Point...");
     wifi_manager_config_t wifi_config = {
-        .ssid = "Паяйко",
+        .ssid = CONFIG_WIFI_SSID,
         .channel = 1,
         .max_connections = 4
     };
