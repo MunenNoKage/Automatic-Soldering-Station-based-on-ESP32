@@ -299,6 +299,73 @@ bool exec_sub_fsm_load_gcode_from_ram(execution_sub_fsm_t* fsm, const char* gcod
 }
 
 /**
+ * @brief Execute a single GCode command for manual control (no automatic Z management)
+ */
+static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
+    if (!cmd) return false;
+
+    if (cmd->type != GCODE_CMD_MOVE) {
+        ESP_LOGW(TAG, "Manual mode only supports G0/G1 move commands");
+        return false;
+    }
+
+    // Move axes sequentially: Z first, then X, then Y
+    // This ensures safe movement order for manual control
+    
+    // Step 1: Move Z axis first
+    if (cmd->has_z) {
+        int32_t target_z = motor_z->mm_to_microsteps(cmd->z);
+        motor_z->setTargetPosition(target_z);
+        
+        while (motor_z->getPosition() != target_z) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - target_z));
+            if (steps > 0) {
+                motor_z->stepMultipleToTarget(steps);
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+        }
+        ESP_LOGI(TAG, "Z axis movement complete");
+    }
+
+    // Step 2: Move X axis second
+    if (cmd->has_x) {
+        int32_t target_x = motor_x->mm_to_microsteps(cmd->x);
+        motor_x->setTargetPosition(target_x);
+        
+        while (motor_x->getPosition() != target_x) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_x->getPosition() - target_x));
+            if (steps > 0) {
+                motor_x->stepMultipleToTarget(steps);
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+        }
+        ESP_LOGI(TAG, "X axis movement complete");
+    }
+
+    // Step 3: Move Y axis last
+    if (cmd->has_y) {
+        int32_t target_y = motor_y->mm_to_microsteps(cmd->y);
+        motor_y->setTargetPosition(target_y);
+        
+        while (motor_y->getPosition() != target_y) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_y->getPosition() - target_y));
+            if (steps > 0) {
+                motor_y->stepMultipleToTarget(steps);
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+        }
+        ESP_LOGI(TAG, "Y axis movement complete");
+    }
+
+    ESP_LOGI(TAG, "Manual movement complete - at position X=%.2f Y=%.2f Z=%.2f",
+             motor_x->microsteps_to_mm(motor_x->getPosition()),
+             motor_y->microsteps_to_mm(motor_y->getPosition()),
+             motor_z->microsteps_to_mm(motor_z->getPosition()));
+
+    return true;
+}
+
+/**
  * @brief Execute a single GCode command
  */
 static bool execute_gcode_command(execution_sub_fsm_t* fsm, const gcode_command_t* cmd) {
@@ -453,6 +520,34 @@ void exec_sub_fsm_process_gcode(execution_sub_fsm_t* fsm) {
         // No more commands - done
         ESP_LOGI(TAG, "GCode execution complete");
         transition_to_state(fsm, EXEC_STATE_COMPLETE);
+    }
+}
+
+/**
+ * @brief Process GCode execution for manual control (no automatic Z management)
+ */
+void exec_sub_fsm_process_gcode_manual(execution_sub_fsm_t* fsm) {
+    if (!fsm || !fsm->use_gcode || !fsm->gcode_parser_handle) {
+        ESP_LOGE(TAG, "Invalid GCode execution state");
+        return;
+    }
+
+    gcode_parser_handle_t parser = (gcode_parser_handle_t)fsm->gcode_parser_handle;
+
+    // Get next command
+    gcode_command_t cmd;
+    if (gcode_parser_get_next_command(parser, &cmd)) {
+        uint32_t line_num = gcode_parser_get_line_number(parser);
+        ESP_LOGI(TAG, "Executing manual line %d", line_num);
+
+        // Execute command with manual control (no automatic Z management)
+        if (!execute_gcode_command_manual(&cmd)) {
+            ESP_LOGW(TAG, "Manual command execution failed at line %d", line_num);
+        }
+
+        fsm->solder_points_completed++;
+    } else {
+        ESP_LOGI(TAG, "Manual GCode execution complete");
     }
 }
 

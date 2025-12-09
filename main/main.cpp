@@ -251,8 +251,8 @@ static bool on_execute_manual_executing(void* user_data) {
         return false;
     }
     
-    // Execute the command (single line)
-    exec_sub_fsm_process_gcode(&exec_sub_fsm);
+    // Execute the command using manual mode (no automatic Z management)
+    exec_sub_fsm_process_gcode_manual(&exec_sub_fsm);
     
     // Cleanup parser
     exec_sub_fsm_cleanup_gcode(&exec_sub_fsm);

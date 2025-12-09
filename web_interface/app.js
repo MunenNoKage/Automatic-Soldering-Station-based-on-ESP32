@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     uploadBtn = document.getElementById('upload-btn');
     fileNameDisplay = document.getElementById('file-name');
     uploadStatus = document.getElementById('upload-status');
+    manualEnterBtn = document.getElementById('btn-manual');
 
     // Preview elements
     previewSection = document.getElementById('preview-section');
@@ -59,6 +60,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (cancelBtn) {
         cancelBtn.addEventListener('click', handleCancel);
+    }
+
+    if (manualEnterBtn) {
+        manualEnterBtn.addEventListener('click', handleManualEnter);
     }
 });
 
@@ -171,7 +176,7 @@ async function handleSendToController() {
         if (response.ok) {
             const result = await response.json();
             const commandCount = cleanGCode.split('\n').length;
-            sendStatus.textContent = `Success: G-Code uploaded to controller (${commandCount} commands). Redirecting to execution control...`;
+            sendStatus.textContent = `Success: G-Code uploaded to controller (${commandCount} commands). Calibrating...`;
             sendStatus.className = 'upload-status success';
 
             // Redirect to execution control page after a short delay
@@ -320,4 +325,41 @@ function parseDrillToGCode(drillContent) {
     gcode.push('; === End of Program ===');
 
     return gcode.join('\n');
+}
+
+/**
+ * Handle manual control mode entry
+ */
+async function handleManualEnter() {
+    sendStatus.textContent = 'Entering manual control mode...';
+    sendStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/enter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            sendStatus.textContent = 'Manual control mode activated';
+            sendStatus.className = 'upload-status success';
+            
+            // Enable move and exit buttons
+            manualEnterBtn.disabled = true;
+            manualMoveBtn.disabled = false;
+            manualExitBtn.disabled = false;
+        } else {
+            sendStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
+            sendStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        sendStatus.textContent = 'Error: ' + error.message;
+        sendStatus.className = 'upload-status error';
+    }
+
+    window.location.href='manual.html'
 }

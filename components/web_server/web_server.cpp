@@ -543,11 +543,13 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
     }
     buf[ret] = '\0';
 
-    // Parse JSON to extract X and Y coordinates
-    // Simple parsing - expecting: {"x": 10.5, "y": 20.3}
-    float x = 0.0f, y = 0.0f;
+    // Parse JSON to extract X, Y, and Z coordinates
+    // Simple parsing - expecting: {"x": 10.5, "y": 20.3, "z": 140.0}
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    bool has_z = false;
     char* x_pos = strstr(buf, "\"x\"");
     char* y_pos = strstr(buf, "\"y\"");
+    char* z_pos = strstr(buf, "\"z\"");
     
     if (x_pos) {
         x_pos = strchr(x_pos, ':');
@@ -562,12 +564,24 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
             y = atof(y_pos + 1);
         }
     }
+    
+    if (z_pos) {
+        z_pos = strchr(z_pos, ':');
+        if (z_pos) {
+            z = atof(z_pos + 1);
+            has_z = true;
+        }
+    }
 
-    ESP_LOGI(TAG, "Manual move to X=%.2f, Y=%.2f", x, y);
+    ESP_LOGI(TAG, "Manual move to X=%.2f, Y=%.2f%s%.2f", x, y, has_z ? ", Z=" : "", has_z ? z : 0.0f);
 
     // Generate G-code command for manual movement
     char gcode_cmd[64];
-    snprintf(gcode_cmd, sizeof(gcode_cmd), "G0 X%.2f Y%.2f", x, y);
+    if (has_z) {
+        snprintf(gcode_cmd, sizeof(gcode_cmd), "G0 X%.2f Y%.2f Z%.2f", x, y, z);
+    } else {
+        snprintf(gcode_cmd, sizeof(gcode_cmd), "G0 X%.2f Y%.2f", x, y);
+    }
 
     // Store in global G-code buffer (single command)
     if (xSemaphoreTake(g_gcode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {

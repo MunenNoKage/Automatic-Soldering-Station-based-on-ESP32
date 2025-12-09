@@ -83,6 +83,7 @@ execution_config_t exec_sub_fsm_get_default_config(void);
 // GCode execution functions
 bool exec_sub_fsm_load_gcode_from_ram(execution_sub_fsm_t* fsm, const char* gcode_buffer, size_t buffer_size);
 void exec_sub_fsm_process_gcode(execution_sub_fsm_t* fsm);
+void exec_sub_fsm_process_gcode_manual(execution_sub_fsm_t* fsm);
 void exec_sub_fsm_cleanup_gcode(execution_sub_fsm_t* fsm);
 
 #ifdef __cplusplus

@@ -11,6 +11,7 @@ let manualMoveBtn;
 let manualExitBtn;
 let manualXInput;
 let manualYInput;
+let manualZInput;
 let manualStatus;
 
 /**
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
     manualExitBtn = document.getElementById('manual-exit-btn');
     manualXInput = document.getElementById('manual-x');
     manualYInput = document.getElementById('manual-y');
+    manualZInput = document.getElementById('manual-z');
     manualStatus = document.getElementById('manual-status');
 
     // Add event listeners
@@ -80,14 +82,15 @@ async function handleManualEnter() {
 async function handleManualMove() {
     const x = parseFloat(manualXInput.value);
     const y = parseFloat(manualYInput.value);
+    const z = parseFloat(manualZInput.value);
 
-    if (isNaN(x) || isNaN(y)) {
+    if (isNaN(x) || isNaN(y) || isNaN(z)) {
         manualStatus.textContent = 'Error: Invalid coordinates';
         manualStatus.className = 'upload-status error';
         return;
     }
 
-    manualStatus.textContent = `Moving to X=${x.toFixed(2)}, Y=${y.toFixed(2)}...`;
+    manualStatus.textContent = `Moving to X=${x.toFixed(2)}, Y=${y.toFixed(2)}, Z=${z.toFixed(2)}...`;
     manualStatus.className = 'upload-status';
 
     try {
@@ -96,13 +99,13 @@ async function handleManualMove() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ x: x, y: y })
+            body: JSON.stringify({ x: x, y: y, z: z })
         });
 
         const result = await response.json();
 
         if (result.success) {
-            manualStatus.textContent = `Command sent: Move to X=${x.toFixed(2)}, Y=${y.toFixed(2)}`;
+            manualStatus.textContent = `Command sent: Move to X=${x.toFixed(2)}, Y=${y.toFixed(2)}, Z=${z.toFixed(2)}`;
             manualStatus.className = 'upload-status success';
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to send move command');
