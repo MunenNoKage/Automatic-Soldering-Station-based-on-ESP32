@@ -121,8 +121,29 @@ static esp_err_t static_file_handler(httpd_req_t *req) {
     // Set content type
     httpd_resp_set_type(req, file->content_type);
 
-    // Send file content
-    httpd_resp_send(req, (const char*)file->data_start, file_size);
+    // Send large files in chunks to avoid buffer overflow
+    const size_t chunk_size = 4096;  // 4KB chunks
+    if (file_size > chunk_size) {
+        size_t offset = 0;
+        while (offset < file_size) {
+            size_t remaining = file_size - offset;
+            size_t to_send = (remaining > chunk_size) ? chunk_size : remaining;
+
+            esp_err_t err = httpd_resp_send_chunk(req, (const char*)(file->data_start + offset), to_send);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to send chunk at offset %d: %s", offset, esp_err_to_name(err));
+                return err;
+            }
+
+            offset += to_send;
+            vTaskDelay(pdMS_TO_TICKS(1));  // Small delay to let WiFi task process
+        }
+        // Send empty chunk to signal end
+        httpd_resp_send_chunk(req, NULL, 0);
+    } else {
+        // Small files can be sent at once
+        httpd_resp_send(req, (const char*)file->data_start, file_size);
+    }
 
     return ESP_OK;
 }
@@ -840,12 +861,12 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     httpd_config.max_uri_handlers = config->max_uri_handlers;
     httpd_config.max_resp_headers = config->max_resp_headers;
     httpd_config.uri_match_fn = httpd_uri_match_wildcard;
-    httpd_config.stack_size = 8192;  // Increase stack size from default 4096 to 8192
-    httpd_config.task_priority = 5;  // Increase priority from default to ensure responsiveness
+    httpd_config.stack_size = 6144;  // 6KB - optimal for ESP32 with chunked file serving
+    httpd_config.task_priority = 5;  // Higher priority for responsiveness
     httpd_config.core_id = tskNO_AFFINITY;  // Allow running on any core
-    httpd_config.recv_wait_timeout = 10;  // Increase recv timeout to 10 seconds
-    httpd_config.send_wait_timeout = 10;  // Increase send timeout to 10 seconds
-    httpd_config.lru_purge_enable = true;  // Enable LRU purge to handle multiple connections
+    httpd_config.recv_wait_timeout = 10;  // 10 second recv timeout
+    httpd_config.send_wait_timeout = 10;  // 10 second send timeout
+    httpd_config.lru_purge_enable = true;  // Enable LRU purge for multiple connections
 
     // Start HTTP server
     esp_err_t ret = httpd_start(&handle->httpd_handle, &httpd_config);
