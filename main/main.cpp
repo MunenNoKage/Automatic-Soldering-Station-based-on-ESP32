@@ -295,20 +295,23 @@ static bool on_execute_calibration(void* user_data) {
     if (!ctx) return false;
 
     if (ctx->iteration_count == 0) {
+        ESP_LOGI(TAG, "Calibrating X-axis");
         motor_x->calibrate();
         motor_x->setEnable(false);
         ctx->iteration_count = 1;
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 1) {
+        ESP_LOGI(TAG, "Calibrating Y-axis");
         motor_y->calibrate();
         motor_y->setEnable(false);
         ctx->iteration_count = 2;
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 2) {
+        ESP_LOGI(TAG, "Calibrating Z-axis");
         motor_z->calibrate();
         motor_z->setEnable(false);
         ctx->iteration_count = 3;
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 3 && !ctx->operation_complete) {
         uint32_t time_since_start = (esp_timer_get_time() / 1000) - ctx->start_time_ms;
         if (time_since_start > 500) {
