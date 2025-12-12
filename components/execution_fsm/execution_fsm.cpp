@@ -11,6 +11,7 @@
 #include "freertos/semphr.h"
 #include "StepperMotor.hpp"
 #include "gcode_parser.h"
+#include "sdkconfig.h"
 #include <string.h>
 #include <cmath>
 
@@ -309,6 +310,20 @@ static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
         return false;
     }
 
+    // Validate coordinate limits
+    if (cmd->has_x && (cmd->x < 0 || cmd->x > CONFIG_MOTOR_X_MAX_POSITION)) {
+        ESP_LOGE(TAG, "X coordinate %.2f out of range [0, %d]", cmd->x, CONFIG_MOTOR_X_MAX_POSITION);
+        return false;
+    }
+    if (cmd->has_y && (cmd->y < 0 || cmd->y > CONFIG_MOTOR_Y_MAX_POSITION)) {
+        ESP_LOGE(TAG, "Y coordinate %.2f out of range [0, %d]", cmd->y, CONFIG_MOTOR_Y_MAX_POSITION);
+        return false;
+    }
+    if (cmd->has_z && (cmd->z < 0 || cmd->z > CONFIG_MOTOR_Z_MAX_POSITION)) {
+        ESP_LOGE(TAG, "Z coordinate %.2f out of range [0, %d]", cmd->z, CONFIG_MOTOR_Z_MAX_POSITION);
+        return false;
+    }
+
     // Move axes sequentially: Z first, then X, then Y
     // This ensures safe movement order for manual control
     
@@ -373,6 +388,20 @@ static bool execute_gcode_command(execution_sub_fsm_t* fsm, const gcode_command_
 
     switch (cmd->type) {
         case GCODE_CMD_MOVE: {
+            // Validate coordinate limits
+            if (cmd->has_x && (cmd->x < 0 || cmd->x > CONFIG_MOTOR_X_MAX_POSITION)) {
+                ESP_LOGE(TAG, "X coordinate %.2f out of range [0, %d]", cmd->x, CONFIG_MOTOR_X_MAX_POSITION);
+                return false;
+            }
+            if (cmd->has_y && (cmd->y < 0 || cmd->y > CONFIG_MOTOR_Y_MAX_POSITION)) {
+                ESP_LOGE(TAG, "Y coordinate %.2f out of range [0, %d]", cmd->y, CONFIG_MOTOR_Y_MAX_POSITION);
+                return false;
+            }
+            if (cmd->has_z && (cmd->z < 0 || cmd->z > CONFIG_MOTOR_Z_MAX_POSITION)) {
+                ESP_LOGE(TAG, "Z coordinate %.2f out of range [0, %d]", cmd->z, CONFIG_MOTOR_Z_MAX_POSITION);
+                return false;
+            }
+
             // G0/G1 - Move to position with proper Z height management
             bool has_xy_move = false;
 

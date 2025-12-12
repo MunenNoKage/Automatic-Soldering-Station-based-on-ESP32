@@ -25,6 +25,13 @@ let currentPosition = { x: 0, y: 0, z: 0 };
 let targetPosition = { x: 0, y: 0, z: 0 };
 let positionUpdateInterval = null;
 
+// Coordinate limits (fetched from backend)
+let coordinateLimits = {
+    x: { min: 0, max: 250 },
+    y: { min: 0, max: 210 },
+    z: { min: 0, max: 180 }
+};
+
 // Board dimensions (configurable based on your setup)
 const BOARD_WIDTH = 200;  // mm
 const BOARD_HEIGHT = 150; // mm
@@ -61,6 +68,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (manualExitBtn) {
         manualExitBtn.addEventListener('click', handleManualExit);
+    }
+
+    // Set input field min/max attributes based on hardcoded limits
+    if (manualXInput) {
+        manualXInput.min = coordinateLimits.x.min;
+        manualXInput.max = coordinateLimits.x.max;
+    }
+    if (manualYInput) {
+        manualYInput.min = coordinateLimits.y.min;
+        manualYInput.max = coordinateLimits.y.max;
+    }
+    if (manualZInput) {
+        manualZInput.min = coordinateLimits.z.min;
+        manualZInput.max = coordinateLimits.z.max;
     }
 
     // Initialize visualization
@@ -115,6 +136,23 @@ async function handleManualMove() {
 
     if (isNaN(x) || isNaN(y) || isNaN(z)) {
         manualStatus.textContent = 'Error: Invalid coordinates';
+        manualStatus.className = 'upload-status error';
+        return;
+    }
+
+    // Validate coordinate ranges
+    if (x < coordinateLimits.x.min || x > coordinateLimits.x.max) {
+        manualStatus.textContent = `Error: X coordinate must be between ${coordinateLimits.x.min} and ${coordinateLimits.x.max} mm`;
+        manualStatus.className = 'upload-status error';
+        return;
+    }
+    if (y < coordinateLimits.y.min || y > coordinateLimits.y.max) {
+        manualStatus.textContent = `Error: Y coordinate must be between ${coordinateLimits.y.min} and ${coordinateLimits.y.max} mm`;
+        manualStatus.className = 'upload-status error';
+        return;
+    }
+    if (z < coordinateLimits.z.min || z > coordinateLimits.z.max) {
+        manualStatus.textContent = `Error: Z coordinate must be between ${coordinateLimits.z.min} and ${coordinateLimits.z.max} mm`;
         manualStatus.className = 'upload-status error';
         return;
     }
