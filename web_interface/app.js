@@ -479,36 +479,6 @@ function updatePreviewDisplays() {
  * Handle manual control mode entry
  */
 async function handleManualEnter() {
-    sendStatus.textContent = 'Entering manual control mode...';
-    sendStatus.className = 'upload-status';
-
-    try {
-        const response = await fetch('/api/manual/enter', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            sendStatus.textContent = 'Manual control mode activated';
-            sendStatus.className = 'upload-status success';
-            
-            // Enable move and exit buttons
-            manualEnterBtn.disabled = true;
-            manualMoveBtn.disabled = false;
-            manualExitBtn.disabled = false;
-        } else {
-            sendStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
-            sendStatus.className = 'upload-status error';
-        }
-    } catch (error) {
-        sendStatus.textContent = 'Error: ' + error.message;
-        sendStatus.className = 'upload-status error';
-    }
-
     window.location.href='manual.html'
 }
 

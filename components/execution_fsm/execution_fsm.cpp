@@ -305,8 +305,29 @@ bool exec_sub_fsm_load_gcode_from_ram(execution_sub_fsm_t* fsm, const char* gcod
 static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
     if (!cmd) return false;
 
+    if (cmd->type == GCODE_CMD_FEED_SOLDER) {
+        // Handle solder feed in manual mode
+        ESP_LOGI(TAG, "Manual solder feed (amount: %d)", cmd->s);
+        
+        int32_t feed_amount = cmd->has_s ? cmd->s : 300;  // Use specified amount or default
+        
+        // Set target position (can be positive or negative)
+        motor_s->setTargetPosition(motor_s->getPosition() + feed_amount, true);
+        
+        // stepMultipleToTarget takes uint32_t, so pass absolute value
+        // The function will determine direction based on target vs current position
+        uint32_t steps = (feed_amount < 0) ? -feed_amount : feed_amount;
+        motor_s->stepMultipleToTarget(steps);
+        
+        // Restore original direction
+        //motor_s->setDirection(original_dir);
+        
+        ESP_LOGI(TAG, "Solder feed complete");
+        return true;
+    }
+
     if (cmd->type != GCODE_CMD_MOVE) {
-        ESP_LOGW(TAG, "Manual mode only supports G0/G1 move commands");
+        ESP_LOGW(TAG, "Manual mode only supports G0/G1 move commands and solder feed");
         return false;
     }
 

@@ -149,10 +149,11 @@ bool gcode_parser_parse_line(gcode_parser_handle_t handle, const char* line, gco
         line++;
 
         // Parse solder amount
-        if (isdigit((unsigned char)*line)) {
+        if (isdigit((unsigned char)*line) || *line == '-') {
             cmd->has_s = true;
-            cmd->s = (uint32_t)atoi(line);
+            cmd->s = (int32_t)atoi(line);
             // Skip the number
+            if (*line == '-') line++;
             while (isdigit((unsigned char)*line)) line++;
         } else {
             // Default solder amount if no number provided
@@ -201,7 +202,7 @@ bool gcode_parser_parse_line(gcode_parser_handle_t handle, const char* line, gco
                     break;
                 case 'S':
                     cmd->has_s = true;
-                    cmd->s = (uint32_t)value;
+                    cmd->s = (int32_t)value;
                     break;
                 case 'T':
                 case 'P':

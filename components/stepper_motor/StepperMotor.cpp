@@ -121,13 +121,17 @@ void StepperMotor::stepMultiple(uint32_t steps) {
     }
 }
 
-void StepperMotor::setTargetPosition(int32_t position) {
+void StepperMotor::setTargetPosition(int32_t position, bool handle_negative) {
     if (handle_ == nullptr) {
         ESP_LOGW(TAG, "Motor not initialized");
         return;
     }
     ESP_LOGI(TAG, "Setting target position to %d", position);
-    target_position_ = std::max(int32_t(0), position);
+    if (!handle_negative) {
+        target_position_ = std::max(int32_t(0), position);
+    } else {
+        target_position_ = position;
+    }
     ESP_LOGI(TAG, "Target position set to %d", target_position_);
 }
 
