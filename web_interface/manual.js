@@ -14,6 +14,9 @@ let manualXInput;
 let manualYInput;
 let manualZInput;
 let manualStatus;
+let solderFeedBtn;
+let solderAmountInput;
+let solderStatus;
 
 // Canvas elements
 let boardCanvas = null;
@@ -51,6 +54,11 @@ document.addEventListener('DOMContentLoaded', function() {
     manualZInput = document.getElementById('manual-z');
     manualStatus = document.getElementById('manual-status');
 
+    // Solder control elements
+    solderFeedBtn = document.getElementById('solder-feed-btn');
+    solderAmountInput = document.getElementById('solder-amount');
+    solderStatus = document.getElementById('solder-status');
+
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
     if (boardCanvas) {
@@ -74,6 +82,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (manualExitBtn) {
         manualExitBtn.addEventListener('click', handleManualExit);
+    }
+
+    if (solderFeedBtn) {
+        solderFeedBtn.addEventListener('click', handleSolderFeed);
     }
 
     // Set input field min/max attributes based on hardcoded limits
@@ -123,6 +135,8 @@ async function handleManualEnter() {
             if (manualMoveBtn) manualMoveBtn.disabled = false;
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = false;
             if (manualExitBtn) manualExitBtn.disabled = false;
+            if (solderFeedBtn) solderFeedBtn.disabled = false;
+
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
             manualStatus.className = 'upload-status error';
@@ -257,6 +271,48 @@ async function handleManualExit() {
     } catch (error) {
         manualStatus.textContent = 'Error: ' + error.message;
         manualStatus.className = 'upload-status error';
+    }
+}
+
+/**
+ * Handle solder feed command
+ */
+async function handleSolderFeed() {
+    const amount = parseInt(solderAmountInput.value);
+
+    if (isNaN(amount) || amount < -1000 || amount > 1000) {
+        solderStatus.textContent = 'Error: Feed amount must be between -1000 and 1000 steps';
+        solderStatus.className = 'upload-status error';
+        return;
+    }
+
+    solderStatus.textContent = `Feeding ${amount} steps of solder...`;
+    solderStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/solder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: amount })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            solderStatus.textContent = `Solder fed: ${amount} steps`;
+            solderStatus.className = 'upload-status success';
+            setTimeout(() => {
+                solderStatus.textContent = '';
+            }, 3000);
+        } else {
+            solderStatus.textContent = 'Error: ' + (result.message || 'Failed to feed solder');
+            solderStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        solderStatus.textContent = 'Error: ' + error.message;
+        solderStatus.className = 'upload-status error';
     }
 }
 

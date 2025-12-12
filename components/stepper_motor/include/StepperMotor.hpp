@@ -69,7 +69,7 @@ public:
     /**
      * @brief Set target position in steps/256
      */
-    void setTargetPosition(int32_t position);
+    void setTargetPosition(int32_t position, bool handle_negative = false);
 
     /**
      * @brief Execute single step towards target position

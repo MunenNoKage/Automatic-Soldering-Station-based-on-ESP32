@@ -116,7 +116,7 @@ static void init_motors() {
         .k_slope = 0.0,
         .minimal_step_delay_us = 600
     };
-    motor_s = new StepperMotor(config_s, CONFIG_MOTOR_S_MICROSTEPS_IN_MM, STEPPER_DIR_COUNTERCLOCKWISE);
+    motor_s = new StepperMotor(config_s, CONFIG_MOTOR_S_MICROSTEPS_IN_MM, STEPPER_DIR_CLOCKWISE);
     if (!motor_s->isInitialized()) {
         ESP_LOGE(TAG, "Failed to initialize solder supply motor");
         return;
@@ -206,6 +206,15 @@ static bool on_enter_manual_control(void* user_data) {
     return true;
 }
 
+static bool on_exit_manual_control(void* user_data) {
+    ESP_LOGI(TAG, "FSM: Exiting MANUAL_CONTROL - Disabling solder motor");
+
+    // Disable solder motor when exiting manual mode
+    motor_s->setEnable(false);
+
+    return true;
+}
+
 static bool on_enter_manual_executing(void* user_data) {
     ESP_LOGI(TAG, "FSM: MANUAL_EXECUTING - Executing manual movement");
 
@@ -213,6 +222,8 @@ static bool on_enter_manual_executing(void* user_data) {
     motor_x->setEnable(true);
     motor_y->setEnable(true);
     motor_z->setEnable(true);
+
+    motor_s->setEnable(true);
 
     return true;
 }
@@ -602,6 +613,7 @@ static void init_fsm(void) {
     // Register callbacks
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_IDLE, on_enter_idle, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_MANUAL_CONTROL, on_enter_manual_control, nullptr);
+    fsm_controller_register_exit_callback(fsm_handle, FSM_STATE_MANUAL_CONTROL, on_exit_manual_control, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_MANUAL_EXECUTING, on_enter_manual_executing, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_CALIBRATION, on_enter_calibration, nullptr);
     fsm_controller_register_enter_callback(fsm_handle, FSM_STATE_READY, on_enter_ready, nullptr);

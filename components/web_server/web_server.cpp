@@ -634,6 +634,97 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
 }
 
 /**
+ * @brief Handler for manual solder feed command
+ */
+static esp_err_t manual_solder_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Manual solder feed request received");
+
+    char buf[128];
+    int ret, remaining = req->content_len;
+
+    if (remaining >= sizeof(buf)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Request too large");
+        return ESP_FAIL;
+    }
+
+    ret = (remaining < sizeof(buf) - 1) ? httpd_req_recv(req, buf, remaining) : httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+    buf[ret] = '\0';
+
+    // Parse JSON to extract solder amount
+    // Expecting: {"amount": 300}
+    int amount = 300;  // Default
+    char* amount_pos = strstr(buf, "\"amount\"");
+
+    if (amount_pos) {
+        amount_pos = strchr(amount_pos, ':');
+        if (amount_pos) {
+            amount = atoi(amount_pos + 1);
+        }
+    }
+
+    // Validate amount
+    if (amount < -1000 || amount > 1000) {
+        ESP_LOGW(TAG, "Invalid solder amount: %d (must be -1000-1000)", amount);
+        const char* error_response = "{\"success\":false,\"message\":\"Amount must be between 10 and 1000 steps\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_send(req, error_response, strlen(error_response));
+        return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "Feeding solder: %d steps", amount);
+
+    // Generate G-code command for solder feed
+    char gcode_cmd[32];
+    snprintf(gcode_cmd, sizeof(gcode_cmd), "S%d", amount);
+
+    // Store in global G-code buffer (single command)
+    if (xSemaphoreTake(g_gcode_mutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
+        if (g_gcode_buffer) {
+            free(g_gcode_buffer);
+        }
+        g_gcode_buffer = strdup(gcode_cmd);
+        g_gcode_size = strlen(gcode_cmd);
+        g_gcode_loaded = true;
+        xSemaphoreGive(g_gcode_mutex);
+
+        ESP_LOGI(TAG, "Solder G-code stored: %s", gcode_cmd);
+    } else {
+        ESP_LOGE(TAG, "Failed to acquire G-code mutex");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Mutex timeout");
+        return ESP_FAIL;
+    }
+
+    // Post FSM event for manual command sent
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_COMMAND_SENT)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_COMMAND_SENT to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_COMMAND_SENT");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Solder feed command accepted\"}"
+        : "{\"success\":false,\"message\":\"Failed to send solder feed command\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
  * @brief Handler for setting origin coordinates
  */
 static esp_err_t manual_set_origin_handler(httpd_req_t *req) {
@@ -849,6 +940,15 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &manual_set_origin_uri);
+
+    // Manual solder feed endpoint
+    httpd_uri_t manual_solder_uri = {
+        .uri = "/api/manual/solder",
+        .method = HTTP_POST,
+        .handler = manual_solder_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_solder_uri);
 
     // Motor control endpoints
     httpd_uri_t motor_control_uri = {

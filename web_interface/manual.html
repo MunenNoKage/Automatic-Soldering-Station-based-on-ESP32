@@ -54,6 +54,16 @@
                 </div>
             </div>
             <div id="manual-status" class="upload-status"></div>
+            <div class="solder-controls">
+                <div class="input-group">
+                    <label for="solder-amount">Feed Solder:</label>
+                    <input type="number" id="solder-amount" step="10" value="0" min="-1000" max="1000" />
+                </div>
+                <div class="solder-buttons">
+                    <button id="solder-feed-btn" class="btn-manual btn-solder" disabled>Feed Solder</button>
+                </div>
+            </div>
+            <div id="solder-status" class="upload-status"></div>
         </section>
     </main>
 

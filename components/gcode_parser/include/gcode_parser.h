@@ -64,7 +64,7 @@ typedef struct {
     double y;          // Used: Y position
     double z;          // Ignored: Z is system-configured
     double f;          // Ignored: Feed rate is system-configured
-    uint32_t s;        // Used: Solder feed amount
+    int32_t s;         // Used: Solder feed amount (can be negative for retraction)
     double t;          // Ignored: Timing is system-configured
 } gcode_command_t;
 
