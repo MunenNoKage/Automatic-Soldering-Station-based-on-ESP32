@@ -218,22 +218,21 @@ void StepperMotor::calibrate() {
 
     ESP_LOGI(TAG, "Calibrating motor...");
 
-    // Move towards endpoint until switch is triggered
-    stepper_motor_hal_set_direction(handle_, STEPPER_DIR_COUNTERCLOCKWISE);
-    bool ennable_state = stepper_motor_hal_get_direction(handle_);
     setEnable(true);
-
     setDirection((positive_direction_ == STEPPER_DIR_CLOCKWISE) ? STEPPER_DIR_COUNTERCLOCKWISE : STEPPER_DIR_CLOCKWISE);
 
+    uint32_t steps_count = 0;
     while (!isEndpointReached()) {
-        stepper_motor_hal_step_multiple(handle_, 50000, true); // Step in small increments
-        vTaskDelay(pdMS_TO_TICKS(2)); // Small delay to avoid busy-waiting
+        stepper_motor_hal_step_multiple(handle_, 5000, true);
+        steps_count++;
+
+        // Yield more frequently to prevent watchdog timeout and WiFi disconnection
+        if (steps_count % 2 == 0) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
     }
 
-    // Reset position to zero at endpoint
     resetPosition();
-
-    setEnable(ennable_state);
 
     ESP_LOGI(TAG, "Motor calibrated to endpoint");
 }

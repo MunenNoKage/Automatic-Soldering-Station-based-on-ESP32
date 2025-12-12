@@ -58,6 +58,8 @@ typedef struct {
     int32_t home_x;                 // Home X coordinate (steps)
     int32_t home_y;                 // Home Y coordinate (steps)
     int32_t home_z;                 // Home Z coordinate (steps)
+    double x_origin;                // Origin X coordinate in mm (default 0.0)
+    double y_origin;                // Origin Y coordinate in mm (default 0.0)
 } execution_config_t;
 
 typedef struct {
@@ -79,6 +81,8 @@ exec_sub_state_t exec_sub_fsm_get_state(const execution_sub_fsm_t* fsm);
 int exec_sub_fsm_get_completed_count(const execution_sub_fsm_t* fsm);
 const char* exec_sub_fsm_get_state_name(exec_sub_state_t state);
 execution_config_t exec_sub_fsm_get_default_config(void);
+void exec_sub_fsm_set_origin(execution_sub_fsm_t* fsm, double x_origin, double y_origin);
+void exec_sub_fsm_get_origin(const execution_sub_fsm_t* fsm, double* x_origin, double* y_origin);
 
 // GCode execution functions
 bool exec_sub_fsm_load_gcode_from_ram(execution_sub_fsm_t* fsm, const char* gcode_buffer, size_t buffer_size);

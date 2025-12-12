@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "gcode_parser.h"
+#include "execution_fsm.h"
 #include "StepperMotor.hpp"
 
 static const char *TAG = "WEB_SERVER";
@@ -26,6 +27,9 @@ extern char* g_gcode_buffer;
 extern size_t g_gcode_size;
 extern bool g_gcode_loaded;
 extern SemaphoreHandle_t g_gcode_mutex;
+
+// External execution sub-FSM (defined in main.cpp)
+extern execution_sub_fsm_t exec_sub_fsm;
 
 // Declare embedded files (created by CMake EMBED_FILES)
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
@@ -556,21 +560,21 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
     char* x_pos = strstr(buf, "\"x\"");
     char* y_pos = strstr(buf, "\"y\"");
     char* z_pos = strstr(buf, "\"z\"");
-    
+
     if (x_pos) {
         x_pos = strchr(x_pos, ':');
         if (x_pos) {
             x = atof(x_pos + 1);
         }
     }
-    
+
     if (y_pos) {
         y_pos = strchr(y_pos, ':');
         if (y_pos) {
             y = atof(y_pos + 1);
         }
     }
-    
+
     if (z_pos) {
         z_pos = strchr(z_pos, ':');
         if (z_pos) {
@@ -625,6 +629,42 @@ static esp_err_t manual_move_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for setting origin coordinates
+ */
+static esp_err_t manual_set_origin_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Set origin request received");
+
+    // Get current motor positions in millimeters
+    double x_origin = 0.0;
+    double y_origin = 0.0;
+
+    if (motor_x && motor_x->isInitialized()) {
+        x_origin = motor_x->microsteps_to_mm(motor_x->getPosition());
+    }
+
+    if (motor_y && motor_y->isInitialized()) {
+        y_origin = motor_y->microsteps_to_mm(motor_y->getPosition());
+    }
+
+    ESP_LOGI(TAG, "Setting origin to current position: X=%.2f mm, Y=%.2f mm", x_origin, y_origin);
+
+    // Set origin in execution sub-FSM
+    exec_sub_fsm_set_origin(&exec_sub_fsm, x_origin, y_origin);
+
+    // Format JSON response
+    char json[256];
+    snprintf(json, sizeof(json),
+             "{\"success\":true,\"message\":\"Origin set to current position\",\"x_origin\":%.2f,\"y_origin\":%.2f}",
+             x_origin, y_origin);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, json, strlen(json));
 
     return ESP_OK;
 }
@@ -709,6 +749,12 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     httpd_config.max_uri_handlers = config->max_uri_handlers;
     httpd_config.max_resp_headers = config->max_resp_headers;
     httpd_config.uri_match_fn = httpd_uri_match_wildcard;
+    httpd_config.stack_size = 8192;  // Increase stack size from default 4096 to 8192
+    httpd_config.task_priority = 5;  // Increase priority from default to ensure responsiveness
+    httpd_config.core_id = tskNO_AFFINITY;  // Allow running on any core
+    httpd_config.recv_wait_timeout = 10;  // Increase recv timeout to 10 seconds
+    httpd_config.send_wait_timeout = 10;  // Increase send timeout to 10 seconds
+    httpd_config.lru_purge_enable = true;  // Enable LRU purge to handle multiple connections
 
     // Start HTTP server
     esp_err_t ret = httpd_start(&handle->httpd_handle, &httpd_config);
@@ -796,6 +842,14 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     };
     httpd_register_uri_handler(handle->httpd_handle, &manual_move_uri);
 
+    httpd_uri_t manual_set_origin_uri = {
+        .uri = "/api/manual/set_origin",
+        .method = HTTP_POST,
+        .handler = manual_set_origin_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_set_origin_uri);
+
     // Motor control endpoints
     httpd_uri_t motor_control_uri = {
         .uri = "/api/motor/move",
@@ -861,8 +915,13 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
     ESP_LOGI(TAG, "  POST /api/gcode/stop");
     ESP_LOGI(TAG, "  POST /api/gcode/pause");
     ESP_LOGI(TAG, "  POST /api/gcode/resume");
+    ESP_LOGI(TAG, "  POST /api/manual/enter");
+    ESP_LOGI(TAG, "  POST /api/manual/exit");
+    ESP_LOGI(TAG, "  POST /api/manual/move");
+    ESP_LOGI(TAG, "  POST /api/manual/set_origin");
     ESP_LOGI(TAG, "  POST /api/motor/move");
     ESP_LOGI(TAG, "  GET  /api/motor/status");
+    ESP_LOGI(TAG, "  GET  /api/status/position");
 
     return handle;
 }

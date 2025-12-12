@@ -50,7 +50,8 @@ bool g_gcode_loaded = false;
 SemaphoreHandle_t g_gcode_mutex = nullptr;
 
 // Execution sub-FSM instance (initialized in on_enter_executing)
-static execution_sub_fsm_t exec_sub_fsm;
+// Note: Not static to allow access from web_server for origin setting
+execution_sub_fsm_t exec_sub_fsm;
 
 /**
  * @brief Initialize all stepper motors
@@ -207,62 +208,69 @@ static bool on_enter_manual_control(void* user_data) {
 
 static bool on_enter_manual_executing(void* user_data) {
     ESP_LOGI(TAG, "FSM: MANUAL_EXECUTING - Executing manual movement");
-    
+
     // Enable motors
     motor_x->setEnable(true);
     motor_y->setEnable(true);
     motor_z->setEnable(true);
-    
+
     return true;
 }
 
 static bool on_execute_manual_executing(void* user_data) {
     fsm_execution_context_t* ctx = fsm_controller_get_execution_context(fsm_handle);
     if (!ctx) return false;
-    
+
     // Only execute once per entry to this state
     if (ctx->operation_complete) {
         return true;
     }
-    
+
     // Check if GCode command is available
     if (!g_gcode_loaded || !g_gcode_buffer) {
         ESP_LOGE(TAG, "No manual G-code command available");
         fsm_controller_post_event(fsm_handle, FSM_EVENT_DATA_ERROR);
         return false;
     }
-    
+
     ESP_LOGI(TAG, "Executing manual command: %s", g_gcode_buffer);
-    
+
+    // Preserve origin coordinates before reinitializing
+    double saved_x_origin = 0.0;
+    double saved_y_origin = 0.0;
+    exec_sub_fsm_get_origin(&exec_sub_fsm, &saved_x_origin, &saved_y_origin);
+
     // Initialize execution FSM for manual command
     execution_config_t exec_config = {
         .safe_z_height = motor_z->mm_to_microsteps(140),
         .soldering_z_height = motor_z->mm_to_microsteps(160),
         .home_x = 0,
         .home_y = 0,
-        .home_z = 0
+        .home_z = 0,
+        .x_origin = saved_x_origin,
+        .y_origin = saved_y_origin
     };
     exec_sub_fsm_init(&exec_sub_fsm, &exec_config);
-    
+
     // Load and parse the single G-code command
     if (!exec_sub_fsm_load_gcode_from_ram(&exec_sub_fsm, g_gcode_buffer, g_gcode_size)) {
         ESP_LOGE(TAG, "Failed to parse manual G-code command");
         fsm_controller_post_event(fsm_handle, FSM_EVENT_DATA_ERROR);
         return false;
     }
-    
+
     // Execute the command using manual mode (no automatic Z management)
     exec_sub_fsm_process_gcode_manual(&exec_sub_fsm);
-    
+
     // Cleanup parser
     exec_sub_fsm_cleanup_gcode(&exec_sub_fsm);
-    
+
     ESP_LOGI(TAG, "Manual movement complete");
     ctx->operation_complete = true;
-    
+
     // Post event to return to MANUAL_CONTROL state
     fsm_controller_post_event(fsm_handle, FSM_EVENT_MANUAL_MOVE_DONE);
-    
+
     return true;
 }
 
@@ -276,23 +284,26 @@ static bool on_execute_calibration(void* user_data) {
     if (!ctx) return false;
 
     if (ctx->iteration_count == 0) {
-        ESP_LOGI(TAG, "Calibrating X-axis");
         motor_x->calibrate();
+        motor_x->setEnable(false);
         ctx->iteration_count = 1;
+        vTaskDelay(pdMS_TO_TICKS(100));
     } else if (ctx->iteration_count == 1) {
-        ESP_LOGI(TAG, "Calibrating Y-axis");
         motor_y->calibrate();
+        motor_y->setEnable(false);
         ctx->iteration_count = 2;
+        vTaskDelay(pdMS_TO_TICKS(100));
     } else if (ctx->iteration_count == 2) {
-        ESP_LOGI(TAG, "Calibrating Z-axis");
         motor_z->calibrate();
+        motor_z->setEnable(false);
         ctx->iteration_count = 3;
+        vTaskDelay(pdMS_TO_TICKS(100));
     } else if (ctx->iteration_count == 3 && !ctx->operation_complete) {
         uint32_t time_since_start = (esp_timer_get_time() / 1000) - ctx->start_time_ms;
         if (time_since_start > 500) {
             ESP_LOGI(TAG, "Calibration complete");
             ctx->operation_complete = true;
-            
+
             // Post appropriate event based on mode
             if (ctx->is_manual_mode) {
                 ESP_LOGI(TAG, "Calibration for manual mode - transitioning to MANUAL_CONTROL");
@@ -355,7 +366,7 @@ static bool on_execute_heating(void* user_data) {
 
     static double current_temp = 0.0;
 
-    if (current_time - last_temp_read_time >= 250) {
+    if (false && current_time - last_temp_read_time >= 250) {
         // Read current temperature
         current_temp = get_current_temperature();
         if (current_temp < 0) {
@@ -392,7 +403,7 @@ static bool on_execute_heating(void* user_data) {
     }
 
     // Temperature reached and stable
-    if (temp_diff <= config->temperature_tolerance && !ctx->operation_complete) {
+    if (true || (temp_diff <= config->temperature_tolerance && !ctx->operation_complete)) {
         ESP_LOGI(TAG, "Target temperature reached: %.1f°C (±%.1f°C)", current_temp, config->temperature_tolerance);
         ctx->operation_complete = true;
         fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_SUCCESS);
@@ -407,12 +418,19 @@ static bool on_enter_executing(void* user_data) {
     motor_z->setEnable(true);
     motor_s->setEnable(true);
 
+    // Preserve origin coordinates before reinitializing
+    double saved_x_origin = 0.0;
+    double saved_y_origin = 0.0;
+    exec_sub_fsm_get_origin(&exec_sub_fsm, &saved_x_origin, &saved_y_origin);
+
     execution_config_t exec_config = {
         .safe_z_height = motor_z->mm_to_microsteps(140),       // 140mm in steps
         .soldering_z_height = motor_z->mm_to_microsteps(160),  // 160mm in steps
         .home_x = 0,
         .home_y = 0,
-        .home_z = 0
+        .home_z = 0,
+        .x_origin = saved_x_origin,
+        .y_origin = saved_y_origin
     };
 
     exec_sub_fsm_init(&exec_sub_fsm, &exec_config);

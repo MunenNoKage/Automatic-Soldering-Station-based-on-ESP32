@@ -8,6 +8,7 @@
 // DOM elements
 let manualEnterBtn;
 let manualMoveBtn;
+let manualSetOriginBtn;
 let manualExitBtn;
 let manualXInput;
 let manualYInput;
@@ -43,6 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get DOM elements
     manualEnterBtn = document.getElementById('manual-enter-btn');
     manualMoveBtn = document.getElementById('manual-move-btn');
+    manualSetOriginBtn = document.getElementById('manual-set-origin-btn');
     manualExitBtn = document.getElementById('manual-exit-btn');
     manualXInput = document.getElementById('manual-x');
     manualYInput = document.getElementById('manual-y');
@@ -66,6 +68,10 @@ document.addEventListener('DOMContentLoaded', function() {
         manualMoveBtn.addEventListener('click', handleManualMove);
     }
 
+    if (manualSetOriginBtn) {
+        manualSetOriginBtn.addEventListener('click', handleSetOrigin);
+    }
+
     if (manualExitBtn) {
         manualExitBtn.addEventListener('click', handleManualExit);
     }
@@ -86,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize visualization
     drawBoard();
-    
+
     // Start position polling
     startPositionPolling();
 });
@@ -111,11 +117,12 @@ async function handleManualEnter() {
         if (result.success) {
             manualStatus.textContent = 'Manual control mode activated';
             manualStatus.className = 'upload-status success';
-            
-            // Enable move and exit buttons
-            manualEnterBtn.disabled = true;
-            manualMoveBtn.disabled = false;
-            manualExitBtn.disabled = false;
+
+            // Enable move, set origin, and exit buttons
+            if (manualEnterBtn) manualEnterBtn.disabled = true;
+            if (manualMoveBtn) manualMoveBtn.disabled = false;
+            if (manualSetOriginBtn) manualSetOriginBtn.disabled = false;
+            if (manualExitBtn) manualExitBtn.disabled = false;
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
             manualStatus.className = 'upload-status error';
@@ -188,6 +195,36 @@ async function handleManualMove() {
 }
 
 /**
+ * Handle set origin command
+ */
+async function handleSetOrigin() {
+    manualStatus.textContent = 'Setting origin coordinates to current position...';
+    manualStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/set_origin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            manualStatus.textContent = `Origin set to X=${result.x_origin.toFixed(2)} mm, Y=${result.y_origin.toFixed(2)} mm`;
+            manualStatus.className = 'upload-status success';
+        } else {
+            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to set origin');
+            manualStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        manualStatus.textContent = 'Error: ' + error.message;
+        manualStatus.className = 'upload-status error';
+    }
+}
+
+/**
  * Handle manual control mode exit
  */
 async function handleManualExit() {
@@ -207,11 +244,12 @@ async function handleManualExit() {
         if (result.success) {
             manualStatus.textContent = 'Exited manual control mode';
             manualStatus.className = 'upload-status success';
-            
+
             // Reset buttons
-            manualEnterBtn.disabled = false;
-            manualMoveBtn.disabled = true;
-            manualExitBtn.disabled = true;
+            if (manualEnterBtn) manualEnterBtn.disabled = false;
+            if (manualMoveBtn) manualMoveBtn.disabled = true;
+            if (manualSetOriginBtn) manualSetOriginBtn.disabled = true;
+            if (manualExitBtn) manualExitBtn.disabled = true;
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to exit manual mode');
             manualStatus.className = 'upload-status error';
@@ -236,11 +274,11 @@ function startPositionPolling() {
             if (response.ok) {
                 const position = await response.json();
                 currentPosition = position;
-                
+
                 if (currentPositionDisplay) {
                     currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
                 }
-                
+
                 if (boardCanvas) {
                     updateVisualization();
                 }
@@ -363,7 +401,7 @@ function updateVisualization() {
     // Draw target position (if set)
     const currentPos = worldToCanvas(currentPosition.x, currentPosition.y);
     const targetPos = worldToCanvas(targetPosition.x, targetPosition.y);
-    
+
     // Calculate distance between current and target
     const dx = targetPosition.x - currentPosition.x;
     const dy = targetPosition.y - currentPosition.y;

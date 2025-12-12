@@ -55,7 +55,9 @@ execution_config_t exec_sub_fsm_get_default_config(void) {
         .soldering_z_height = 18000,
         .home_x = 0,
         .home_y = 0,
-        .home_z = 0
+        .home_z = 0,
+        .x_origin = 0.0,
+        .y_origin = 0.0
     };
     return config;
 }
@@ -71,9 +73,10 @@ void exec_sub_fsm_init(execution_sub_fsm_t* fsm, const execution_config_t* confi
         fsm->config = exec_sub_fsm_get_default_config();
     }
 
-    ESP_LOGI(TAG, "Init: safe_z=%ld, solder_z=%ld, home=(%ld,%ld,%ld)",
+    ESP_LOGI(TAG, "Init: safe_z=%ld, solder_z=%ld, home=(%ld,%ld,%ld), origin=(%.2f,%.2f)",
              fsm->config.safe_z_height, fsm->config.soldering_z_height,
-             fsm->config.home_x, fsm->config.home_y, fsm->config.home_z);
+             fsm->config.home_x, fsm->config.home_y, fsm->config.home_z,
+             fsm->config.x_origin, fsm->config.y_origin);
 }
 
 void exec_sub_fsm_process(execution_sub_fsm_t* fsm, const solder_point_t* points, int num_points) {
@@ -302,21 +305,27 @@ bool exec_sub_fsm_load_gcode_from_ram(execution_sub_fsm_t* fsm, const char* gcod
 /**
  * @brief Execute a single GCode command for manual control (no automatic Z management)
  */
-static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
-    if (!cmd) return false;
+static bool execute_gcode_command_manual(execution_sub_fsm_t* fsm, const gcode_command_t* cmd) {
+    if (!fsm || !cmd) return false;
 
     if (cmd->type != GCODE_CMD_MOVE) {
         ESP_LOGW(TAG, "Manual mode only supports G0/G1 move commands");
         return false;
     }
 
-    // Validate coordinate limits
-    if (cmd->has_x && (cmd->x < 0 || cmd->x > CONFIG_MOTOR_X_MAX_POSITION)) {
-        ESP_LOGE(TAG, "X coordinate %.2f out of range [0, %d]", cmd->x, CONFIG_MOTOR_X_MAX_POSITION);
+    // Apply origin offset to coordinates (same as automatic mode)
+    double actual_x = cmd->has_x ? (cmd->x + fsm->config.x_origin) : 0.0;
+    double actual_y = cmd->has_y ? (cmd->y + fsm->config.y_origin) : 0.0;
+
+    // Validate coordinate limits (after applying origin offset)
+    if (cmd->has_x && (actual_x < 0 || actual_x > CONFIG_MOTOR_X_MAX_POSITION)) {
+        ESP_LOGE(TAG, "X coordinate %.2f (%.2f + %.2f origin) out of range [0, %d]",
+                 actual_x, cmd->x, fsm->config.x_origin, CONFIG_MOTOR_X_MAX_POSITION);
         return false;
     }
-    if (cmd->has_y && (cmd->y < 0 || cmd->y > CONFIG_MOTOR_Y_MAX_POSITION)) {
-        ESP_LOGE(TAG, "Y coordinate %.2f out of range [0, %d]", cmd->y, CONFIG_MOTOR_Y_MAX_POSITION);
+    if (cmd->has_y && (actual_y < 0 || actual_y > CONFIG_MOTOR_Y_MAX_POSITION)) {
+        ESP_LOGE(TAG, "Y coordinate %.2f (%.2f + %.2f origin) out of range [0, %d]",
+                 actual_y, cmd->y, fsm->config.y_origin, CONFIG_MOTOR_Y_MAX_POSITION);
         return false;
     }
     if (cmd->has_z && (cmd->z < 0 || cmd->z > CONFIG_MOTOR_Z_MAX_POSITION)) {
@@ -326,12 +335,12 @@ static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
 
     // Move axes sequentially: Z first, then X, then Y
     // This ensures safe movement order for manual control
-    
+
     // Step 1: Move Z axis first
     if (cmd->has_z) {
         int32_t target_z = motor_z->mm_to_microsteps(cmd->z);
         motor_z->setTargetPosition(target_z);
-        
+
         while (motor_z->getPosition() != target_z) {
             uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - target_z));
             if (steps > 0) {
@@ -342,11 +351,11 @@ static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
         ESP_LOGI(TAG, "Z axis movement complete");
     }
 
-    // Step 2: Move X axis second
+    // Step 2: Move X axis second (with origin offset applied)
     if (cmd->has_x) {
-        int32_t target_x = motor_x->mm_to_microsteps(cmd->x);
+        int32_t target_x = motor_x->mm_to_microsteps(actual_x);
         motor_x->setTargetPosition(target_x);
-        
+
         while (motor_x->getPosition() != target_x) {
             uint32_t steps = static_cast<uint32_t>(std::abs(motor_x->getPosition() - target_x));
             if (steps > 0) {
@@ -357,11 +366,11 @@ static bool execute_gcode_command_manual(const gcode_command_t* cmd) {
         ESP_LOGI(TAG, "X axis movement complete");
     }
 
-    // Step 3: Move Y axis last
+    // Step 3: Move Y axis last (with origin offset applied)
     if (cmd->has_y) {
-        int32_t target_y = motor_y->mm_to_microsteps(cmd->y);
+        int32_t target_y = motor_y->mm_to_microsteps(actual_y);
         motor_y->setTargetPosition(target_y);
-        
+
         while (motor_y->getPosition() != target_y) {
             uint32_t steps = static_cast<uint32_t>(std::abs(motor_y->getPosition() - target_y));
             if (steps > 0) {
@@ -388,13 +397,19 @@ static bool execute_gcode_command(execution_sub_fsm_t* fsm, const gcode_command_
 
     switch (cmd->type) {
         case GCODE_CMD_MOVE: {
-            // Validate coordinate limits
-            if (cmd->has_x && (cmd->x < 0 || cmd->x > CONFIG_MOTOR_X_MAX_POSITION)) {
-                ESP_LOGE(TAG, "X coordinate %.2f out of range [0, %d]", cmd->x, CONFIG_MOTOR_X_MAX_POSITION);
+            // Apply origin offset to coordinates
+            double actual_x = cmd->has_x ? (cmd->x + fsm->config.x_origin) : 0.0;
+            double actual_y = cmd->has_y ? (cmd->y + fsm->config.y_origin) : 0.0;
+
+            // Validate coordinate limits (after applying origin offset)
+            if (cmd->has_x && (actual_x < 0 || actual_x > CONFIG_MOTOR_X_MAX_POSITION)) {
+                ESP_LOGE(TAG, "X coordinate %.2f (%.2f + %.2f origin) out of range [0, %d]",
+                         actual_x, cmd->x, fsm->config.x_origin, CONFIG_MOTOR_X_MAX_POSITION);
                 return false;
             }
-            if (cmd->has_y && (cmd->y < 0 || cmd->y > CONFIG_MOTOR_Y_MAX_POSITION)) {
-                ESP_LOGE(TAG, "Y coordinate %.2f out of range [0, %d]", cmd->y, CONFIG_MOTOR_Y_MAX_POSITION);
+            if (cmd->has_y && (actual_y < 0 || actual_y > CONFIG_MOTOR_Y_MAX_POSITION)) {
+                ESP_LOGE(TAG, "Y coordinate %.2f (%.2f + %.2f origin) out of range [0, %d]",
+                         actual_y, cmd->y, fsm->config.y_origin, CONFIG_MOTOR_Y_MAX_POSITION);
                 return false;
             }
             if (cmd->has_z && (cmd->z < 0 || cmd->z > CONFIG_MOTOR_Z_MAX_POSITION)) {
@@ -414,23 +429,24 @@ static bool execute_gcode_command(execution_sub_fsm_t* fsm, const gcode_command_
                 if (z_steps > 0) motor_z->stepMultipleToTarget(z_steps);
             }
 
-            // Step 2: Move X and Y to target position
+            // Step 2: Move X and Y to target position (with origin offset applied)
             if (cmd->has_x) {
-                int32_t target_x = motor_x->mm_to_microsteps(cmd->x);
+                int32_t target_x = motor_x->mm_to_microsteps(actual_x);
                 motor_x->setTargetPosition(target_x);
                 has_xy_move = true;
             }
 
             if (cmd->has_y) {
-                int32_t target_y = motor_y->mm_to_microsteps(cmd->y);
+                int32_t target_y = motor_y->mm_to_microsteps(actual_y);
                 motor_y->setTargetPosition(target_y);
                 has_xy_move = true;
             }
 
             if (has_xy_move) {
-                ESP_LOGI(TAG, "Moving to XY: X=%.2f Y=%.2f (Z at safe height)",
-                         cmd->has_x ? cmd->x : motor_x->microsteps_to_mm(motor_x->getPosition()),
-                         cmd->has_y ? cmd->y : motor_y->microsteps_to_mm(motor_y->getPosition()));
+                ESP_LOGI(TAG, "Moving to XY: X=%.2f Y=%.2f (origin: %.2f, %.2f, Z at safe height)",
+                         cmd->has_x ? actual_x : motor_x->microsteps_to_mm(motor_x->getPosition()),
+                         cmd->has_y ? actual_y : motor_y->microsteps_to_mm(motor_y->getPosition()),
+                         fsm->config.x_origin, fsm->config.y_origin);
 
                 // Execute XY movements
                 if (cmd->has_x) {
@@ -570,7 +586,7 @@ void exec_sub_fsm_process_gcode_manual(execution_sub_fsm_t* fsm) {
         ESP_LOGI(TAG, "Executing manual line %d", line_num);
 
         // Execute command with manual control (no automatic Z management)
-        if (!execute_gcode_command_manual(&cmd)) {
+        if (!execute_gcode_command_manual(fsm, &cmd)) {
             ESP_LOGW(TAG, "Manual command execution failed at line %d", line_num);
         }
 
@@ -590,4 +606,32 @@ void exec_sub_fsm_cleanup_gcode(execution_sub_fsm_t* fsm) {
         fsm->use_gcode = false;
         ESP_LOGI(TAG, "GCode parser cleaned up");
     }
+}
+
+/**
+ * @brief Set origin coordinates for coordinate system
+ */
+void exec_sub_fsm_set_origin(execution_sub_fsm_t* fsm, double x_origin, double y_origin) {
+    if (!fsm) {
+        ESP_LOGE(TAG, "Invalid FSM handle in set_origin");
+        return;
+    }
+
+    fsm->config.x_origin = x_origin;
+    fsm->config.y_origin = y_origin;
+
+    ESP_LOGI(TAG, "Origin set to: X=%.2f mm, Y=%.2f mm", x_origin, y_origin);
+}
+
+/**
+ * @brief Get origin coordinates
+ */
+void exec_sub_fsm_get_origin(const execution_sub_fsm_t* fsm, double* x_origin, double* y_origin) {
+    if (!fsm || !x_origin || !y_origin) {
+        ESP_LOGE(TAG, "Invalid parameters in get_origin");
+        return;
+    }
+
+    *x_origin = fsm->config.x_origin;
+    *y_origin = fsm->config.y_origin;
 }

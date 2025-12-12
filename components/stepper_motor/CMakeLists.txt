@@ -2,17 +2,16 @@
 # Build configuration for stepper motor component
 
 idf_component_register(
-    SRCS 
+    SRCS
         "stepper_motor_hal.c"
         "StepperMotor.cpp"
-    INCLUDE_DIRS 
+    INCLUDE_DIRS
         "include"
     REQUIRES
         esp_driver_gpio
         freertos
         esp_system
-        esp_hal_wdt
-    PRIV_REQUIRES 
-        driver 
+    PRIV_REQUIRES
+        driver
         esp_timer
 )
