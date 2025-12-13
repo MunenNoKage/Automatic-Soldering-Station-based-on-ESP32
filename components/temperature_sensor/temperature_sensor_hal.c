@@ -1,23 +1,23 @@
 /**
  * @file temperature_sensor_hal.c
- * @brief Реалізація HAL для MAX6675
+ * @brief Implementation of HAL for MAX6675
  */
 
 #include "temperature_sensor_hal.h"
-#include <stdlib.h> // Для malloc/free
+#include <stdlib.h> // For malloc/free
 #include "esp_log.h"
 
-// Тег для логування
+// Tag for logging
 static const char *TAG = "MAX6675_HAL";
 
 /**
- * @brief Внутрішня структура "ручки"
+ * @brief Internal handle structure
  */
 struct temperature_sensor_handle_s
 {
-    temperature_sensor_config_t config; // Копія конфігурації
-    spi_device_handle_t spi_device;     // "Ручка" SPI пристрою
-    bool is_bus_initialized;            // Прапорець, що ми ініціалізували шину
+    temperature_sensor_config_t config; // Copy of configuration
+    spi_device_handle_t spi_device;     // SPI device handle
+    bool is_bus_initialized;            // Flag that we initialized the bus
 };
 
 temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor_config_t *config)
@@ -28,7 +28,7 @@ temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor
         return NULL;
     }
 
-    // 1. Виділяємо пам'ять під "ручку"
+    // 1. Allocate memory for the handle
     temperature_sensor_handle_t handle = (temperature_sensor_handle_t)malloc(sizeof(struct temperature_sensor_handle_s));
     if (handle == NULL)
     {
@@ -36,30 +36,30 @@ temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor
         return NULL;
     }
 
-    // 2. Копіюємо конфігурацію
+    // 2. Copy the configuration
     handle->config = *config;
     handle->spi_device = NULL;
     handle->is_bus_initialized = false;
 
-    // 3. Конфігурація шини SPI (з вашого `spi_mod.c`)
+    // 3. SPI bus configuration (from your `spi_mod.c`)
     spi_bus_config_t buscfg = {
         .miso_io_num = config->pin_miso,
         .mosi_io_num = config->pin_mosi,
         .sclk_io_num = config->pin_clk,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = 2 // Нам потрібно лише 2 байти (16 біт)
+        .max_transfer_sz = 2 // We need only 2 bytes (16 bits)
     };
 
-    // 4. Ініціалізуємо SPI шину
+    // 4. Initialize SPI bus
     esp_err_t ret = spi_bus_initialize(config->host_id, &buscfg, config->dma_chan);
     if (ret != ESP_OK)
     {
-        // Можливо, шина вже ініціалізована. Це ОК.
+        // Possibly, the bus is already initialized. This is OK.
         if (ret == ESP_ERR_INVALID_STATE)
         {
             ESP_LOGW(TAG, "SPI bus (host: %d) already initialized.", config->host_id);
-            handle->is_bus_initialized = false; // Ми не "володіємо" шиною
+            handle->is_bus_initialized = false; // We do not "own" the bus
         }
         else
         {
@@ -70,18 +70,18 @@ temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor
     }
     else
     {
-        handle->is_bus_initialized = true; // Ми ініціалізували шину
+        handle->is_bus_initialized = true; // We initialized the bus
     }
 
-    // 5. Конфігурація пристрою (з вашого `spi_mod.c`)
+    // 5. Device configuration (from your `spi_mod.c`)
     spi_device_interface_config_t devCfg = {
-        .mode = 0, // SPI Mode 0 (CPOL=0, CPHA=0) - коректно для MAX6675
+        .mode = 0, // SPI Mode 0 (CPOL=0, CPHA=0) - correct for MAX6675
         .clock_speed_hz = config->clock_speed_hz,
         .spics_io_num = config->pin_cs,
-        .queue_size = 1 // Нам потрібна лише одна транзакція в черзі
+        .queue_size = 1 // We need only one transaction in the queue
     };
 
-    // 6. Додаємо пристрій до шини
+    // 6. Add device to bus
     ret = spi_bus_add_device(config->host_id, &devCfg, &handle->spi_device);
     if (ret != ESP_OK)
     {
@@ -103,19 +103,19 @@ void temperature_sensor_hal_deinit(temperature_sensor_handle_t handle)
     if (handle == NULL)
         return;
 
-    // 1. Видаляємо пристрій з шини
+    // 1. Remove device from bus
     if (handle->spi_device)
     {
         spi_bus_remove_device(handle->spi_device);
     }
 
-    // 2. Звільняємо шину, АЛЕ ТІЛЬКИ ЯКЩО МИ її ініціалізували
+    // 2. Free the bus, BUT ONLY IF WE initialized it
     if (handle->is_bus_initialized)
     {
         spi_bus_free(handle->config.host_id);
     }
 
-    // 3. Звільняємо пам'ять
+    // 3. Free memory
     free(handle);
     ESP_LOGI(TAG, "Temperature sensor HAL deinitialized");
 }
@@ -127,26 +127,26 @@ esp_err_t temperature_sensor_hal_read_raw(temperature_sensor_handle_t handle, ui
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint16_t data = 0; // Тут будуть сирі дані
+    uint16_t data = 0; // Raw data will be here
 
-    // 1. Готуємо транзакцію (з вашого `main.c`)
+    // 1. Prepare transaction (from your `main.c`)
     spi_transaction_t tM = {
-        .tx_buffer = NULL,  // Нічого не надсилаємо
-        .rx_buffer = &data, // Отримуємо дані сюди
-        .length = 16,       // 16 біт
-        .rxlength = 16,     // Очікуємо 16 біт
+        .tx_buffer = NULL,  // Nothing to send
+        .rx_buffer = &data, // Receive data here
+        .length = 16,       // 16 bits
+        .rxlength = 16,     // Expect 16 bits
     };
 
-    // 2. Виконуємо транзакцію (блокуючий режим)
-    // Це чистіша заміна для acquire/transmit/release
+    // 2. Execute transaction (blocking mode)
+    // This is a cleaner replacement for acquire/transmit/release
     esp_err_t ret = spi_device_polling_transmit(handle->spi_device, &tM);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "spi_device_polling_transmit failed: %s", esp_err_to_name(ret));
-        return ret; // Повертаємо помилку SPI
+        return ret; // Return SPI error
     }
 
-    // 3. Коригуємо порядок байтів (з вашого `main.c`)
+    // 3. Correct byte order (from your `main.c`)
     *out_raw_data = SPI_SWAP_DATA_RX(data, 16);
 
     return ESP_OK;
@@ -161,31 +161,31 @@ esp_err_t temperature_sensor_hal_read_temperature(temperature_sensor_handle_t ha
 
     uint16_t raw_data = 0;
 
-    // 1. Отримуємо "сирі" дані
+    // 1. Get raw data
     esp_err_t ret = temperature_sensor_hal_read_raw(handle, &raw_data);
     if (ret != ESP_OK)
     {
-        *out_temp = 0.0; // Або NAN
-        return ret;      // Помилка SPI
+        *out_temp = 0.0; // Or NAN
+        return ret;      // SPI error
     }
 
-    // 2. Аналізуємо "сирі" дані (логіка з вашого `main.c`)
+    // 2. Analyze raw data (logic from your `main.c`)
 
-    // Перевіряємо біт D2 (Open circuit / термопара не підключена)
+    // Check bit D2 (Open circuit / thermocouple not connected)
     if (raw_data & (1 << 2))
     {
         // ESP_LOGW(TAG, "Thermocouple is not connected (Open Circuit)");
-        *out_temp = 0.0; // Повертаємо 0, але зі статусом помилки
-        return ESP_FAIL; // Використовуємо ESP_FAIL як "помилку сенсора"
+        *out_temp = 0.0; // Return 0, but with error status
+        return ESP_FAIL; // Use ESP_FAIL as "sensor error"
     }
 
-    // 3. Розраховуємо температуру
+    // 3. Calculate temperature
     int16_t temp_data = (int16_t)raw_data;
 
-    // Відкидаємо 3 молодших біти (D0, D1, D2)
+    // Discard 3 lower bits (D0, D1, D2)
     temp_data >>= 3;
 
-    // Конвертуємо у градуси C (роздільна здатність 0.25 C)
+    // Convert to degrees C (resolution 0.25 C)
     *out_temp = (double)temp_data * 0.25;
 
     return ESP_OK;

@@ -1,8 +1,8 @@
 /**
  * @file temperature_sensor_hal.h
  * @brief Hardware Abstraction Layer for MAX6675 K-Type thermocouple
- * * Надає С-інтерфейс для зчитування температури з MAX6675.
- * Використовує ESP32 SPI master driver.
+ * Provides a C-interface for reading temperature from MAX6675.
+ * Uses ESP32 SPI master driver.
  */
 
 #ifndef TEMPERATURE_SENSOR_HAL_H
@@ -11,9 +11,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "driver/gpio.h"
-#include "driver/spi_master.h" // Потрібен для SPI
-#include "driver/gpio.h"       // Потрібен для gpio_num_t
-#include "esp_err.h"           // Потрібен для esp_err_t
+#include "driver/spi_master.h" // Needed SPI
+#include "driver/gpio.h"       // Needed for gpio_num_t
+#include "esp_err.h"           // Needed for esp_err_t
 
 #ifdef __cplusplus
 extern "C"
@@ -21,57 +21,57 @@ extern "C"
 #endif
 
     /**
-     * @brief Конфігурація SPI-сенсора (MAX6675)
+     * @brief Configuration of SPI sensor (MAX6675)
      */
     typedef struct
     {
-        spi_host_device_t host_id; // SPI хост (напр. VSPI_HOST)
-        gpio_num_t pin_miso;       // Пін MISO
-        gpio_num_t pin_mosi;       // Пін MOSI (можна -1)
-        gpio_num_t pin_clk;         // Пін SCLK
-        gpio_num_t pin_cs;          // Пін Chip Select
-        int dma_chan;              // Канал DMA (0 = вимкнено)
-        int clock_speed_hz;        // Швидкість SPI (напр. 2*1000*1000)
+        spi_host_device_t host_id; // SPI host (e.g. VSPI_HOST)
+        gpio_num_t pin_miso;       // MISO pin
+        gpio_num_t pin_mosi;       // MOSI pin (can be -1)
+        gpio_num_t pin_clk;         // SCLK pin
+        gpio_num_t pin_cs;          // Chip Select pin
+        int dma_chan;              // DMA channel (0 = disabled)
+        int clock_speed_hz;        // SPI speed (e.g. 2*1000*1000)
     } temperature_sensor_config_t;
 
     /**
-     * @brief "Ручка" сенсора (непрозорий вказівник)
-     * Зберігає внутрішній стан, вкл. spi_device_handle_t
+     * @brief Sensor handle (opaque pointer)
+     * Stores internal state, incl. spi_device_handle_t
      */
     typedef struct temperature_sensor_handle_s *temperature_sensor_handle_t;
 
     /**
-     * @brief Ініціалізація SPI-шини та сенсора MAX6675
-     * * Налаштовує SPI шину та додає до неї пристрій MAX6675.
-     * @param config Вказівник на структуру конфігурації.
-     * @return "Ручка" сенсора, або NULL у разі помилки.
+     * @brief Initialization of SPI bus and MAX6675 sensor
+     * Configures SPI bus and adds MAX6675 device to it.
+     * @param config Pointer to configuration structure.
+     * @return Sensor handle, or NULL on error.
      */
     temperature_sensor_handle_t temperature_sensor_hal_init(const temperature_sensor_config_t *config);
 
     /**
-     * @brief Деініціалізація сенсора та звільнення SPI-шини
-     * * @param handle "Ручка" сенсора, отримана з hal_init.
+     * @brief Deinitialization of sensor and freeing SPI bus
+     * @param handle Sensor handle obtained from hal_init.
      */
     void temperature_sensor_hal_deinit(temperature_sensor_handle_t handle);
 
     /**
-     * @brief Зчитування температури в градусах Цельсія
+     * @brief Reading temperature in degrees Celsius
      *
-     * @param handle "Ручка" сенсора.
-     * @param[out] out_temp Вказівник, куди буде записана температура.
+     * @param handle Sensor handle.
+     * @param[out] out_temp Pointer where temperature will be written.
      * @return esp_err_t:
-     * - ESP_OK: Успіх, температура записана в out_temp.
-     * - ESP_FAIL: Помилка сенсора (термопара не підключена).
-     * - Інші коди помилок: Помилка комунікації SPI.
+     * - ESP_OK: Success, temperature written to out_temp.
+     * - ESP_FAIL: Sensor error (thermocouple not connected).
+     * - Other error codes: SPI communication error.
      */
     esp_err_t temperature_sensor_hal_read_temperature(temperature_sensor_handle_t handle, double *out_temp);
 
     /**
-     * @brief (Опційно) Зчитування "сирих" 16-бітних даних з сенсора
+     * @brief (Optional) Reading raw 16-bit data from sensor
      *
-     * @param handle "Ручка" сенсора.
-     * @param[out] out_raw_data Вказівник, куди будуть записані сирі дані.
-     * @return esp_err_t ESP_OK або помилка SPI.
+     * @param handle Sensor handle.
+     * @param[out] out_raw_data Pointer where raw data will be written.
+     * @return esp_err_t ESP_OK or SPI error.
      */
     esp_err_t temperature_sensor_hal_read_raw(temperature_sensor_handle_t handle, uint16_t *out_raw_data);
 
