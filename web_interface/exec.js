@@ -294,31 +294,14 @@ function stopPositionPolling() {
 function drawBoard() {
     if (!boardCtx || drillPoints.length === 0) return;
 
-    // Calculate board bounds
-    let minX = Infinity, minY = Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
-
-    for (const point of drillPoints) {
-        minX = Math.min(minX, point.x);
-        minY = Math.min(minY, point.y);
-        maxX = Math.max(maxX, point.x);
-        maxY = Math.max(maxY, point.y);
-    }
-
-    // Add margin around the board (10mm on each side)
-    const margin = 10;
-    const boardWidth = (maxX - minX) + (2 * margin);
-    const boardHeight = (maxY - minY) + (2 * margin);
-
+    // Calculate visualization parameters using board_canvas module
+    const params = calculateBoardCanvasParams(boardCanvas, drillPoints, 0);
+    
     // Store visualization parameters globally
-    window.execVisualizationParams = {
-        minX, minY, maxX, maxY,
-        margin,
-        boardWidth, boardHeight
-    };
+    window.execVisualizationParams = params;
 
     if (boardDimensionsDisplay) {
-        boardDimensionsDisplay.textContent = `${(maxX - minX).toFixed(1)}mm × ${(maxY - minY).toFixed(1)}mm`;
+        boardDimensionsDisplay.textContent = `${(params.maxX - params.minX).toFixed(1)}mm × ${(params.maxY - params.minY).toFixed(1)}mm`;
     }
 
     updateVisualization();
@@ -330,128 +313,15 @@ function drawBoard() {
 function updateVisualization() {
     if (!boardCtx || !window.execVisualizationParams) return;
 
-    const canvas = boardCanvas;
-    const ctx = boardCtx;
-    const params = window.execVisualizationParams;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Add padding
-    const padding = 40;
-    const drawWidth = canvas.width - 2 * padding;
-    const drawHeight = canvas.height - 2 * padding;
-
-    // Calculate scale
-    const scaleX = drawWidth / params.boardWidth;
-    const scaleY = drawHeight / params.boardHeight;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Center the board
-    const boardPixelWidth = params.boardWidth * scale;
-    const boardPixelHeight = params.boardHeight * scale;
-    const offsetX = padding + (drawWidth - boardPixelWidth) / 2;
-    const offsetY = padding + (drawHeight - boardPixelHeight) / 2;
-
-    // Helper function to convert world coordinates to canvas coordinates
-    const worldToCanvas = (worldX, worldY) => {
-        const canvasX = offsetX + (worldX - params.minX + params.margin) * scale;
-        const canvasY = offsetY + (worldY - params.minY + params.margin) * scale;
-        return { x: canvasX, y: canvasY };
-    };
-
-    // Draw PCB background
-    ctx.fillStyle = '#2d5016';
-    ctx.fillRect(offsetX, offsetY, boardPixelWidth, boardPixelHeight);
-
-    // Draw grid
-    ctx.strokeStyle = '#3d6020';
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([3, 3]);
-    const gridSpacing = 10; // 10mm grid
-
-    // Vertical grid lines
-    for (let x = 0; x <= params.boardWidth; x += gridSpacing) {
-        const canvasX = offsetX + x * scale;
-        ctx.beginPath();
-        ctx.moveTo(canvasX, offsetY);
-        ctx.lineTo(canvasX, offsetY + boardPixelHeight);
-        ctx.stroke();
-    }
-
-    // Horizontal grid lines
-    for (let y = 0; y <= params.boardHeight; y += gridSpacing) {
-        const canvasY = offsetY + y * scale;
-        ctx.beginPath();
-        ctx.moveTo(offsetX, canvasY);
-        ctx.lineTo(offsetX + boardPixelWidth, canvasY);
-        ctx.stroke();
-    }
-
-    ctx.setLineDash([]);
-
-    // Draw origin marker
-    const origin = worldToCanvas(0, 0);
-    if (origin.x >= offsetX && origin.x <= offsetX + boardPixelWidth &&
-        origin.y >= offsetY && origin.y <= offsetY + boardPixelHeight) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(origin.x - 10, origin.y);
-        ctx.lineTo(origin.x + 10, origin.y);
-        ctx.moveTo(origin.x, origin.y - 10);
-        ctx.lineTo(origin.x, origin.y + 10);
-        ctx.stroke();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '12px monospace';
-        ctx.fillText('(0,0)', origin.x + 12, origin.y - 5);
-    }
-
-    // Draw drill holes
-    for (let i = 0; i < drillPoints.length; i++) {
-        const point = drillPoints[i];
-        const pos = worldToCanvas(point.x, point.y);
-
-        // Gold pad
-        ctx.fillStyle = '#d4af37';
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 8, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Black center
-        ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 3, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Hole number
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText((i + 1).toString(), pos.x, pos.y);
-    }
-
-    // Draw current position marker
-    const currentPos = worldToCanvas(currentPosition.x, currentPosition.y);
-    
-    // Red crosshair
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(currentPos.x - 10, currentPos.y);
-    ctx.lineTo(currentPos.x + 10, currentPos.y);
-    ctx.moveTo(currentPos.x, currentPos.y - 10);
-    ctx.lineTo(currentPos.x, currentPos.y + 10);
-    ctx.stroke();
-
-    // Red circle
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(currentPos.x, currentPos.y, 8, 0, 2 * Math.PI);
-    ctx.stroke();
+    // Use board_canvas module to draw everything
+    drawBoardCanvas(
+        boardCtx,
+        window.execVisualizationParams,
+        drillPoints,
+        currentPosition,
+        null, // no excluded holes in exec mode
+        -1    // no hovered index in exec mode
+    );
 }
 
 // Cleanup on page unload

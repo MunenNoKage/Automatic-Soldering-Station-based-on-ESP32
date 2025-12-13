@@ -53,6 +53,15 @@ extern const uint8_t manual_js_end[] asm("_binary_manual_js_end");
 extern const uint8_t exec_js_start[] asm("_binary_exec_js_start");
 extern const uint8_t exec_js_end[] asm("_binary_exec_js_end");
 
+extern const uint8_t board_visualization_js_start[] asm("_binary_board_visualization_js_start");
+extern const uint8_t board_visualization_js_end[] asm("_binary_board_visualization_js_end");
+
+extern const uint8_t board_canvas_js_start[] asm("_binary_board_canvas_js_start");
+extern const uint8_t board_canvas_js_end[] asm("_binary_board_canvas_js_end");
+
+extern const uint8_t machine_canvas_js_start[] asm("_binary_machine_canvas_js_start");
+extern const uint8_t machine_canvas_js_end[] asm("_binary_machine_canvas_js_end");
+
 /**
  * @brief Structure for embedded file mapping
  */
@@ -85,6 +94,9 @@ static const embedded_file_t* get_embedded_file(const char* uri) {
         {"/app.js", app_js_start, app_js_end, "application/javascript"},
         {"/manual.js", manual_js_start, manual_js_end, "application/javascript"},
         {"/exec.js", exec_js_start, exec_js_end, "application/javascript"},
+        {"/board_visualization.js", board_visualization_js_start, board_visualization_js_end, "application/javascript"},
+        {"/board_canvas.js", board_canvas_js_start, board_canvas_js_end, "application/javascript"},
+        {"/machine_canvas.js", machine_canvas_js_start, machine_canvas_js_end, "application/javascript"},
     };
 
     for (size_t i = 0; i < sizeof(embedded_files) / sizeof(embedded_files[0]); i++) {

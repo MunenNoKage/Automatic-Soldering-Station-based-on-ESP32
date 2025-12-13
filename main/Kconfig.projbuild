@@ -202,13 +202,13 @@ menu "Automatic Soldering Station Configuration"
 
         config SOLDERING_IRON_MAX_TEMP
             int "Maximum Temperature (°C)"
-            default 150
+            default 420
             help
                 Maximum allowed temperature for soldering iron
 
         config SOLDERING_IRON_DEFAULT_TEMP
             int "Default Temperature (°C)"
-            default 50
+            default 350
             help
                 Default temperature setting for soldering iron
     endmenu
@@ -228,7 +228,7 @@ menu "Automatic Soldering Station Configuration"
 
         config TEMP_SENSOR_CLK_PIN
             int "SPI CLK Pin"
-            default 18
+            default 15
             help
                 GPIO pin for MAX6675 CLK (SCK) signal
 

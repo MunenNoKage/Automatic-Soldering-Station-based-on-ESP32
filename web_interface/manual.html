@@ -22,6 +22,18 @@
             <div class="visualization-container">
                 <div class="canvas-wrapper">
                     <canvas id="board-canvas" width="800" height="600"></canvas>
+                    <div class="z-slider-container">
+                        <div class="z-slider-label">Z</div>
+                        <div class="z-slider-scale">
+                            <span class="z-max">180</span>
+                            <div class="z-slider-track">
+                                <div class="z-slider-fill" id="z-slider-fill"></div>
+                                <div class="z-slider-thumb" id="z-slider-thumb"></div>
+                            </div>
+                            <span class="z-min">0</span>
+                        </div>
+                        <div class="z-value" id="z-value">0.0mm</div>
+                    </div>
                 </div>
                 <div class="visualization-info">
                     <span id="current-position">Position: X=0.0, Y=0.0, Z=0.0 mm</span>
@@ -70,6 +82,8 @@
     <footer>
     </footer>
 
+    <script src="board_visualization.js"></script>
+    <script src="machine_canvas.js"></script>
     <script src="manual.js"></script>
 </body>
 </html>

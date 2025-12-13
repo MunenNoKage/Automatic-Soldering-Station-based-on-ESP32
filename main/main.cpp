@@ -380,11 +380,12 @@ static bool on_execute_heating(void* user_data) {
 
     static double current_temp = 0.0;
 
-    if (false && current_time - last_temp_read_time >= 250) {
+    if (current_time - last_temp_read_time >= 250) {
         // Read current temperature
         current_temp = get_current_temperature();
+        ESP_LOGI(TAG, "temp: %.2f", current_temp);
         if (current_temp < 0) {
-            ESP_LOGE(TAG, "Temperature sensor error");
+            ESP_LOGE(TAG, "Temperature sensor error: %.2f", current_temp);
             fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
             return false;
         }
@@ -417,7 +418,7 @@ static bool on_execute_heating(void* user_data) {
     }
 
     // Temperature reached and stable
-    if (true || (temp_diff <= config->temperature_tolerance && !ctx->operation_complete)) {
+    if (temp_diff <= config->temperature_tolerance && !ctx->operation_complete) {
         ESP_LOGI(TAG, "Target temperature reached: %.1f°C (±%.1f°C)", current_temp, config->temperature_tolerance);
         ctx->operation_complete = true;
         fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_SUCCESS);

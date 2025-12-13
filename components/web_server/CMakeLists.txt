@@ -12,5 +12,8 @@ idf_component_register(
         "../../web_interface/app.js"
         "../../web_interface/manual.js"
         "../../web_interface/exec.js"
+        "../../web_interface/board_visualization.js"
+        "../../web_interface/board_canvas.js"
+        "../../web_interface/machine_canvas.js"
     REQUIRES esp_http_server fsm_controller gcode_parser execution_fsm
 )
