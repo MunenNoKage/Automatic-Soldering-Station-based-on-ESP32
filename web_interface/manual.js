@@ -24,11 +24,6 @@ let boardCtx = null;
 let currentPositionDisplay = null;
 let boardDimensionsDisplay = null;
 
-// Z-slider elements
-let zSliderFill = null;
-let zSliderThumb = null;
-let zValueDisplay = null;
-
 // Visualization data
 let currentPosition = { x: 0, y: 0, z: 0 };
 let targetPosition = null;  // null until a move command is issued
@@ -58,20 +53,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Solder control elements
     solderFeedBtn = document.getElementById('solder-feed-btn');
     solderAmountInput = document.getElementById('solder-amount');
-    solderStatus = document.getElementById('solder-status');
+    solderStatus = document.getElementById('manual-status');
 
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
     if (boardCanvas) {
         boardCtx = boardCanvas.getContext('2d');
+        // Add click event listener for canvas
+        boardCanvas.addEventListener('click', handleCanvasClick);
     }
     currentPositionDisplay = document.getElementById('current-position');
     boardDimensionsDisplay = document.getElementById('board-dimensions');
-
-    // Z-slider elements
-    zSliderFill = document.getElementById('z-slider-fill');
-    zSliderThumb = document.getElementById('z-slider-thumb');
-    zValueDisplay = document.getElementById('z-value');
 
     // Add event listeners
     if (manualEnterBtn) {
@@ -98,14 +90,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (manualXInput) {
         manualXInput.min = coordinateLimits.x.min;
         manualXInput.max = coordinateLimits.x.max;
+        manualXInput.addEventListener('input', handleCoordinateInput);
     }
     if (manualYInput) {
         manualYInput.min = coordinateLimits.y.min;
         manualYInput.max = coordinateLimits.y.max;
+        manualYInput.addEventListener('input', handleCoordinateInput);
     }
     if (manualZInput) {
         manualZInput.min = coordinateLimits.z.min;
         manualZInput.max = coordinateLimits.z.max;
+        manualZInput.addEventListener('input', handleCoordinateInput);
     }
 
     // Initialize visualization
@@ -114,6 +109,69 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start position polling
     startPositionPolling();
 });
+
+/**
+ * Handle coordinate input changes to update target visualization
+ */
+function handleCoordinateInput() {
+    const x = parseFloat(manualXInput.value);
+    const y = parseFloat(manualYInput.value);
+    const z = parseFloat(manualZInput.value);
+
+    // Only update target if all coordinates are valid numbers
+    if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+        // Clamp to coordinate limits
+        const clampedX = Math.max(coordinateLimits.x.min, Math.min(coordinateLimits.x.max, x));
+        const clampedY = Math.max(coordinateLimits.y.min, Math.min(coordinateLimits.y.max, y));
+        const clampedZ = Math.max(coordinateLimits.z.min, Math.min(coordinateLimits.z.max, z));
+
+        // Update target position for visualization
+        targetPosition = { x: clampedX, y: clampedY, z: clampedZ };
+
+        // Redraw visualization to show target
+        updateVisualization();
+    }
+}
+
+/**
+ * Handle canvas click to set target coordinates
+ */
+function handleCanvasClick(event) {
+    if (!boardCanvas) return;
+
+    const rect = boardCanvas.getBoundingClientRect();
+    
+    // Get click position relative to canvas element
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    
+    // Scale to canvas internal coordinates (canvas might be scaled via CSS)
+    const scaleX = boardCanvas.width / rect.width;
+    const scaleY = boardCanvas.height / rect.height;
+    const canvasX = clickX * scaleX;
+    const canvasY = clickY * scaleY;
+
+    // Convert canvas coordinates to world coordinates
+    const worldCoords = machineCanvasToWorld(boardCanvas, canvasX, canvasY, coordinateLimits);
+
+    // Clamp to coordinate limits
+    const x = Math.max(coordinateLimits.x.min, Math.min(coordinateLimits.x.max, worldCoords.x));
+    const y = Math.max(coordinateLimits.y.min, Math.min(coordinateLimits.y.max, worldCoords.y));
+
+    // Update input fields
+    if (manualXInput) manualXInput.value = x.toFixed(1);
+    if (manualYInput) manualYInput.value = y.toFixed(1);
+
+    // Update target position for visualization
+    targetPosition = { 
+        x: x, 
+        y: y, 
+        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z 
+    };
+
+    // Redraw visualization to show target
+    updateVisualization();
+}
 
 /**
  * Handle manual control mode entry
@@ -323,32 +381,6 @@ async function handleSolderFeed() {
 }
 
 /**
- * Update Z-slider visualization
- * @param {number} zPosition - Current Z position in mm
- */
-function updateZSlider(zPosition) {
-    if (!zSliderFill || !zSliderThumb || !zValueDisplay) return;
-
-    const zMin = coordinateLimits.z.min;
-    const zMax = coordinateLimits.z.max;
-    
-    // Clamp position to limits
-    const clampedZ = Math.max(zMin, Math.min(zMax, zPosition));
-    
-    // Calculate percentage (0% = bottom, 100% = top)
-    const percentage = ((clampedZ - zMin) / (zMax - zMin)) * 100;
-    
-    // Update fill height
-    zSliderFill.style.height = percentage + '%';
-    
-    // Update thumb position
-    zSliderThumb.style.bottom = percentage + '%';
-    
-    // Update value display
-    zValueDisplay.textContent = clampedZ.toFixed(1) + 'mm';
-}
-
-/**
  * Start polling for position updates
  */
 function startPositionPolling() {
@@ -366,9 +398,6 @@ function startPositionPolling() {
                 if (currentPositionDisplay) {
                     currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
                 }
-
-                // Update Z-slider
-                updateZSlider(position.z);
 
                 // Check if we've reached the target position
                 if (targetPosition !== null) {

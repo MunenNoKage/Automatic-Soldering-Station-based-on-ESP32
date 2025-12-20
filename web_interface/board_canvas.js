@@ -112,7 +112,7 @@ function drawBoardCanvas(ctx, params, drillPoints, currentPosition, excludedHole
         } else {
             ctx.fillStyle = isHovered ? '#ffd700' : '#d4af37';
         }
-        const padRadius = isHovered ? 12 : 8;
+        const padRadius = isHovered ? 10 : 8;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, padRadius, 0, 2 * Math.PI);
         ctx.fill();
@@ -125,11 +125,11 @@ function drawBoardCanvas(ctx, params, drillPoints, currentPosition, excludedHole
 
         // Hole number (if not excluded and not too many holes)
         if (!isExcluded && drillPoints.length <= 50) {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#ffffffff';
             ctx.font = '10px monospace';
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText((i + 1).toString(), pos.x, pos.y);
+            ctx.textBaseline = 'top';
+            ctx.fillText((i + 1).toString(), pos.x, pos.y + padRadius + 3);
         }
     }
 
@@ -230,48 +230,6 @@ function drawBoardOriginMarker(ctx, worldToCanvas, canvasWidth, canvasHeight) {
     }
     
     const size = BoardVisualization.originMarkerSize;
-    
-    // Draw axes
-    ctx.strokeStyle = BoardVisualization.colors.originAxis;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(origin.x - size, origin.y);
-    ctx.lineTo(origin.x + size, origin.y);
-    ctx.moveTo(origin.x, origin.y - size);
-    ctx.lineTo(origin.x, origin.y + size);
-    ctx.stroke();
-
-    // Draw arrowheads
-    const arrowSize = 8;
-    ctx.fillStyle = BoardVisualization.colors.originAxis;
-    
-    // X-axis arrow
-    ctx.beginPath();
-    ctx.moveTo(origin.x + size, origin.y);
-    ctx.lineTo(origin.x + size - arrowSize, origin.y - arrowSize / 2);
-    ctx.lineTo(origin.x + size - arrowSize, origin.y + arrowSize / 2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Y-axis arrow
-    ctx.beginPath();
-    ctx.moveTo(origin.x, origin.y - size);
-    ctx.lineTo(origin.x - arrowSize / 2, origin.y - size + arrowSize);
-    ctx.lineTo(origin.x + arrowSize / 2, origin.y - size + arrowSize);
-    ctx.closePath();
-    ctx.fill();
-
-    // Draw center circle
-    ctx.beginPath();
-    ctx.arc(origin.x, origin.y, BoardVisualization.originCircleRadius, 0, 2 * Math.PI);
-    ctx.fill();
-
-    // Draw outer circle
-    ctx.strokeStyle = BoardVisualization.colors.originAxis;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(origin.x, origin.y, BoardVisualization.originCircleRadius + 3, 0, 2 * Math.PI);
-    ctx.stroke();
 }
 
 /**

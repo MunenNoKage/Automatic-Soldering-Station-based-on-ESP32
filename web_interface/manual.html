@@ -19,63 +19,42 @@
 
     <main>
         <section id="visualization-section">
-            <div class="visualization-container">
-                <div class="canvas-wrapper">
-                    <canvas id="board-canvas" width="800" height="600"></canvas>
-                    <div class="z-slider-container">
-                        <div class="z-slider-label">Z</div>
-                        <div class="z-slider-scale">
-                            <span class="z-max">180</span>
-                            <div class="z-slider-track">
-                                <div class="z-slider-fill" id="z-slider-fill"></div>
-                                <div class="z-slider-thumb" id="z-slider-thumb"></div>
-                            </div>
-                            <span class="z-min">0</span>
-                        </div>
-                        <div class="z-value" id="z-value">0.0mm</div>
-                    </div>
+            <h2>Position</h2>
+            <div class="canvas-wrapper">
+                <canvas id="board-canvas" width="800" height="600"></canvas>
+            </div>
+            <div class="coord-inputs">
+                <div class="input-group">
+                    <label for="manual-x">X (mm):</label>
+                    <input type="number" id="manual-x" step="1" value="0" />
                 </div>
-                <div class="visualization-info">
-                    <span id="current-position">Position: X=0.0, Y=0.0, Z=0.0 mm</span>
-                    <span id="board-dimensions">Board: 0×0 mm</span>
+                <div class="input-group">
+                    <label for="manual-y">Y (mm):</label>
+                    <input type="number" id="manual-y" step="1" value="0" />
+                </div>
+                <div class="input-group">
+                    <label for="manual-z">Z (mm):</label>
+                    <input type="number" id="manual-z" step="1" value="0" />
                 </div>
             </div>
+            <p style="color: gray; font-size: 0.9rem;">Set the desired position of the soldering iron's tip by choosing a point on the board above or entering the precise coordinates in the input fields.</p>
         </section>
         <section id="manual-control-section">
-            <h2>Manual Control</h2>
+            <h2>Station control</h2>
             <div class="manual-controls">
-                <div class="coord-inputs">
-                    <div class="input-group">
-                        <label for="manual-x">X Coordinate (mm):</label>
-                        <input type="number" id="manual-x" step="0.1" value="0" />
-                    </div>
-                    <div class="input-group">
-                        <label for="manual-y">Y Coordinate (mm):</label>
-                        <input type="number" id="manual-y" step="0.1" value="0" />
-                    </div>
-                    <div class="input-group">
-                        <label for="manual-z">Z Coordinate (mm):</label>
-                        <input type="number" id="manual-z" step="0.1" value="0" />
-                    </div>
-                </div>
                 <div class="manual-buttons">
-                    <button id="manual-enter-btn" class="btn-manual btn-enter">Enter Manual Mode</button>
-                    <button id="manual-move-btn" class="btn-manual btn-move" disabled>Move to Position</button>
-                    <button id="manual-set-origin-btn" class="btn-manual btn-origin" disabled>Set Origin Here</button>
-                    <button id="manual-exit-btn" class="btn-manual btn-exit" disabled>Exit Manual Mode</button>
+                    <button id="manual-enter-btn" class="btn-manual btn-start">Calibrate</button>
+                    <button id="manual-move-btn" class="btn-manual btn-resume" disabled>Move to Position</button>
+                    <button id="manual-set-origin-btn" class="btn-manual btn-pause" disabled>Set Origin Here</button>
                 </div>
             </div>
-            <div id="manual-status" class="upload-status"></div>
             <div class="solder-controls">
-                <div class="input-group">
-                    <label for="solder-amount">Feed Solder:</label>
+                <div class="input-group" style="flex-direction: row; margin-top: 1rem;">
                     <input type="number" id="solder-amount" step="10" value="0" min="-1000" max="1000" />
-                </div>
-                <div class="solder-buttons">
                     <button id="solder-feed-btn" class="btn-manual btn-solder" disabled>Feed Solder</button>
                 </div>
             </div>
-            <div id="solder-status" class="upload-status"></div>
+            <div id="manual-status" class="upload-status"></div>
         </section>
     </main>
 

@@ -16,9 +16,9 @@ const BoardVisualization = {
     colors: {
         background: '#1a1a1a',          // Dark background
         pcbBoard: '#1e4620',            // Dark green PCB
-        pcbBorder: '#2d6830',           // Lighter green border
-        gridMajor: '#2d5520',           // Major grid lines (every 50mm)
-        gridMinor: '#243d18',           // Minor grid lines (every 10mm)
+        pcbBorder: '#85a487ff',           // Lighter green border
+        gridMajor: '#727272ff',           // Subtle major grid
+        gridMinor: '#626262ff',            // Very subtle minor grid
         originAxis: '#ffa500',          // Orange for origin axes
         originLabel: '#ffffff',         // White for origin label
         currentPosition: '#ff3333',     // Bright red for current position
@@ -40,6 +40,14 @@ const BoardVisualization = {
         origin: 'bold 14px monospace',
         measurements: '11px monospace',
         coordinates: '12px monospace'
+    },
+
+    // Manual mode colors (darker, more subdued)
+    manualColors: {
+        pcbBoard: '#413d56ff',            // Dark blue-gray PCB
+        pcbBorder: '#a2a2a2ff',           // Lighter blue-gray border
+        gridMajor: '#727272ff',           // Subtle major grid
+        gridMinor: '#515151ff'            // Very subtle minor grid
     }
 };
 
@@ -47,20 +55,24 @@ const BoardVisualization = {
  * Draw the PCB board background with grid
  * @param {CanvasRenderingContext2D} ctx - Canvas context
  * @param {Object} params - Visualization parameters
+ * @param {Object} colorOverride - Optional color override object (e.g., BoardVisualization.manualColors)
  */
-function drawPCBBoard(ctx, params) {
+function drawPCBBoard(ctx, params, colorOverride = null) {
     const { offsetX, offsetY, boardPixelWidth, boardPixelHeight, scale, minX, maxX, minY, maxY } = params;
+    
+    // Use override colors if provided, otherwise use default colors
+    const colors = colorOverride || BoardVisualization.colors;
     
     // Clear canvas
     ctx.fillStyle = BoardVisualization.colors.background;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     // Draw PCB board background
-    ctx.fillStyle = BoardVisualization.colors.pcbBoard;
+    ctx.fillStyle = colors.pcbBoard;
     ctx.fillRect(offsetX, offsetY, boardPixelWidth, boardPixelHeight);
 
     // Draw board border
-    ctx.strokeStyle = BoardVisualization.colors.pcbBorder;
+    ctx.strokeStyle = colors.pcbBorder;
     ctx.lineWidth = 2;
     ctx.strokeRect(offsetX, offsetY, boardPixelWidth, boardPixelHeight);
 
@@ -73,7 +85,7 @@ function drawPCBBoard(ctx, params) {
     };
 
     // Draw minor grid lines (10mm)
-    ctx.strokeStyle = BoardVisualization.colors.gridMinor;
+    ctx.strokeStyle = colors.gridMinor || BoardVisualization.colors.gridMinor;
     ctx.lineWidth = 0.5;
     
     for (let x = Math.ceil(minX / BoardVisualization.gridMinorSpacing) * BoardVisualization.gridMinorSpacing; 
@@ -99,7 +111,7 @@ function drawPCBBoard(ctx, params) {
     }
 
     // Draw major grid lines (50mm) with labels
-    ctx.strokeStyle = BoardVisualization.colors.gridMajor;
+    ctx.strokeStyle = colors.gridMajor || BoardVisualization.colors.gridMajor;
     ctx.lineWidth = 1;
     ctx.fillStyle = BoardVisualization.colors.measurementText;
     ctx.font = BoardVisualization.fonts.measurements;
