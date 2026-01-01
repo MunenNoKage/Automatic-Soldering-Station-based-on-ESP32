@@ -8,6 +8,7 @@ idf_component_register(
         nvs_flash
         stepper_motor
         fsm_controller
+        fsm_callbacks
         execution_fsm
         esp_timer
         wifi_manager
