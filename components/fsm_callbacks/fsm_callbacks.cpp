@@ -16,6 +16,29 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+// Forward declarations of callback functions
+extern "C" {
+    bool on_enter_idle(void* user_data);
+    bool on_enter_manual_control(void* user_data);
+    bool on_enter_manual_executing(void* user_data);
+    bool on_enter_calibration(void* user_data);
+    bool on_enter_ready(void* user_data);
+    bool on_enter_heating(void* user_data);
+    bool on_enter_executing(void* user_data);
+    bool on_enter_paused(void* user_data);
+    bool on_enter_normal_exit(void* user_data);
+    bool on_enter_error_state(void* user_data);
+    bool on_enter_lock_state(void* user_data);
+
+    bool on_exit_manual_control(void* user_data);
+
+    bool on_execute_manual_executing(void* user_data);
+    bool on_execute_calibration(void* user_data);
+    bool on_execute_heating(void* user_data);
+    bool on_execute_executing(void* user_data);
+    bool on_execute_normal_exit(void* user_data);
+}
+
 namespace {
     static const char *TAG = "FSM_CALLBACKS";
 
@@ -91,7 +114,12 @@ void fsm_callbacks_register_all(fsm_controller_handle_t fsm) {
     fsm_controller_register_enter_callback(fsm, FSM_STATE_READY, on_enter_ready, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_HEATING, on_enter_heating, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_EXECUTING, on_enter_executing, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_PAUSED, on_enter_paused, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_NORMAL_EXIT, on_enter_normal_exit, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_CALIBRATION_ERROR, on_enter_error_state, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_HEATING_ERROR, on_enter_error_state, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_DATA_ERROR, on_enter_error_state, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_LOCK, on_enter_lock_state, nullptr);
 
     // Register exit callbacks
     fsm_controller_register_exit_callback(fsm, FSM_STATE_MANUAL_CONTROL, on_exit_manual_control, nullptr);
@@ -218,6 +246,51 @@ bool on_enter_executing(void* user_data) {
     }
 
     ESP_LOGI(TAG, "GCode parser initialized - starting execution");
+    return true;
+}
+
+bool on_enter_paused(void* user_data) {
+    ESP_LOGI(TAG, "FSM: PAUSED - Task paused, awaiting resume or exit command");
+
+    // Keep heater active during pause to maintain temperature
+    // Motors remain in their current positions
+
+    return true;
+}
+
+bool on_enter_error_state(void* user_data) {
+    ESP_LOGE(TAG, "FSM: ERROR STATE - System entered error state");
+
+    // Disable heater immediately for safety
+    if (iron_handle) {
+        soldering_iron_hal_set_enable(iron_handle, false);
+        ESP_LOGI(TAG, "Heater disabled due to error");
+    }
+
+    // Disable all motors
+    if (motor_x) motor_x->setEnable(false);
+    if (motor_y) motor_y->setEnable(false);
+    if (motor_z) motor_z->setEnable(false);
+    if (motor_s) motor_s->setEnable(false);
+
+    return true;
+}
+
+bool on_enter_lock_state(void* user_data) {
+    ESP_LOGE(TAG, "FSM: LOCK STATE - System locked, manual restart required");
+
+    // Ensure everything is off
+    if (iron_handle) {
+        soldering_iron_hal_set_enable(iron_handle, false);
+    }
+
+    if (motor_x) motor_x->setEnable(false);
+    if (motor_y) motor_y->setEnable(false);
+    if (motor_z) motor_z->setEnable(false);
+    if (motor_s) motor_s->setEnable(false);
+
+    ESP_LOGE(TAG, "System requires manual reset/restart");
+
     return true;
 }
 

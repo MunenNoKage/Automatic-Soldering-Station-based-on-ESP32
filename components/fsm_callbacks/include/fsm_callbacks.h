@@ -58,35 +58,6 @@ void fsm_callbacks_init(
  */
 void fsm_callbacks_register_all(fsm_controller_handle_t fsm);
 
-// ============================================================================
-// State Enter Callbacks
-// ============================================================================
-
-bool on_enter_idle(void* user_data);
-bool on_enter_manual_control(void* user_data);
-bool on_enter_manual_executing(void* user_data);
-bool on_enter_calibration(void* user_data);
-bool on_enter_ready(void* user_data);
-bool on_enter_heating(void* user_data);
-bool on_enter_executing(void* user_data);
-bool on_enter_normal_exit(void* user_data);
-
-// ============================================================================
-// State Exit Callbacks
-// ============================================================================
-
-bool on_exit_manual_control(void* user_data);
-
-// ============================================================================
-// State Execute Callbacks
-// ============================================================================
-
-bool on_execute_manual_executing(void* user_data);
-bool on_execute_calibration(void* user_data);
-bool on_execute_heating(void* user_data);
-bool on_execute_executing(void* user_data);
-bool on_execute_normal_exit(void* user_data);
-
 #ifdef __cplusplus
 }
 #endif
