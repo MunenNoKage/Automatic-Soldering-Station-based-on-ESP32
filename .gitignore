@@ -58,3 +58,6 @@ dependencies.lock
 assets/automatic_soldering_station_pcb/automatic_soldering_station_pcb-backups/*
 assets/automatic_soldering_station_pcb/fp-info-cache
 assets/automatic_soldering_station_pcb/*.txt
+
+assets/automatic_soldering_station_pcb/~*
+assets/automatic_soldering_station_pcb/\#*
