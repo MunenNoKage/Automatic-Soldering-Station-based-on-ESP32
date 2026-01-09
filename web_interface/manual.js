@@ -26,19 +26,15 @@ let boardDimensionsDisplay = null;
 
 // Visualization data
 let currentPosition = { x: 0, y: 0, z: 0 };
-let targetPosition = { x: 0, y: 0, z: 0 };
+let targetPosition = null;  // null until a move command is issued
 let positionUpdateInterval = null;
 
-// Coordinate limits (fetched from backend)
+// Coordinate limits (from hardware configuration)
 let coordinateLimits = {
     x: { min: 0, max: 250 },
     y: { min: 0, max: 210 },
     z: { min: 0, max: 180 }
 };
-
-// Board dimensions (configurable based on your setup)
-const BOARD_WIDTH = 200;  // mm
-const BOARD_HEIGHT = 150; // mm
 
 /**
  * Initialize the manual control page
@@ -57,12 +53,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Solder control elements
     solderFeedBtn = document.getElementById('solder-feed-btn');
     solderAmountInput = document.getElementById('solder-amount');
-    solderStatus = document.getElementById('solder-status');
+    solderStatus = document.getElementById('manual-status');
 
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
     if (boardCanvas) {
         boardCtx = boardCanvas.getContext('2d');
+        // Add click event listener for canvas
+        boardCanvas.addEventListener('click', handleCanvasClick);
     }
     currentPositionDisplay = document.getElementById('current-position');
     boardDimensionsDisplay = document.getElementById('board-dimensions');
@@ -92,14 +90,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (manualXInput) {
         manualXInput.min = coordinateLimits.x.min;
         manualXInput.max = coordinateLimits.x.max;
+        manualXInput.addEventListener('input', handleCoordinateInput);
     }
     if (manualYInput) {
         manualYInput.min = coordinateLimits.y.min;
         manualYInput.max = coordinateLimits.y.max;
+        manualYInput.addEventListener('input', handleCoordinateInput);
     }
     if (manualZInput) {
         manualZInput.min = coordinateLimits.z.min;
         manualZInput.max = coordinateLimits.z.max;
+        manualZInput.addEventListener('input', handleCoordinateInput);
     }
 
     // Initialize visualization
@@ -108,6 +109,69 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start position polling
     startPositionPolling();
 });
+
+/**
+ * Handle coordinate input changes to update target visualization
+ */
+function handleCoordinateInput() {
+    const x = parseFloat(manualXInput.value);
+    const y = parseFloat(manualYInput.value);
+    const z = parseFloat(manualZInput.value);
+
+    // Only update target if all coordinates are valid numbers
+    if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+        // Clamp to coordinate limits
+        const clampedX = Math.max(coordinateLimits.x.min, Math.min(coordinateLimits.x.max, x));
+        const clampedY = Math.max(coordinateLimits.y.min, Math.min(coordinateLimits.y.max, y));
+        const clampedZ = Math.max(coordinateLimits.z.min, Math.min(coordinateLimits.z.max, z));
+
+        // Update target position for visualization
+        targetPosition = { x: clampedX, y: clampedY, z: clampedZ };
+
+        // Redraw visualization to show target
+        updateVisualization();
+    }
+}
+
+/**
+ * Handle canvas click to set target coordinates
+ */
+function handleCanvasClick(event) {
+    if (!boardCanvas) return;
+
+    const rect = boardCanvas.getBoundingClientRect();
+    
+    // Get click position relative to canvas element
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    
+    // Scale to canvas internal coordinates (canvas might be scaled via CSS)
+    const scaleX = boardCanvas.width / rect.width;
+    const scaleY = boardCanvas.height / rect.height;
+    const canvasX = clickX * scaleX;
+    const canvasY = clickY * scaleY;
+
+    // Convert canvas coordinates to world coordinates
+    const worldCoords = machineCanvasToWorld(boardCanvas, canvasX, canvasY, coordinateLimits);
+
+    // Clamp to coordinate limits
+    const x = Math.max(coordinateLimits.x.min, Math.min(coordinateLimits.x.max, worldCoords.x));
+    const y = Math.max(coordinateLimits.y.min, Math.min(coordinateLimits.y.max, worldCoords.y));
+
+    // Update input fields
+    if (manualXInput) manualXInput.value = x.toFixed(1);
+    if (manualYInput) manualYInput.value = y.toFixed(1);
+
+    // Update target position for visualization
+    targetPosition = { 
+        x: x, 
+        y: y, 
+        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z 
+    };
+
+    // Redraw visualization to show target
+    updateVisualization();
+}
 
 /**
  * Handle manual control mode entry
@@ -335,6 +399,18 @@ function startPositionPolling() {
                     currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
                 }
 
+                // Check if we've reached the target position
+                if (targetPosition !== null) {
+                    const dx = Math.abs(position.x - targetPosition.x);
+                    const dy = Math.abs(position.y - targetPosition.y);
+                    const dz = Math.abs(position.z - targetPosition.z);
+                    
+                    // If within 0.5mm of target on all axes, clear target
+                    if (dx < 0.5 && dy < 0.5 && dz < 0.5) {
+                        targetPosition = null;
+                    }
+                }
+
                 if (boardCanvas) {
                     updateVisualization();
                 }
@@ -356,23 +432,15 @@ function stopPositionPolling() {
 }
 
 /**
- * Draw the board with fixed dimensions
+ * Draw the board with working area dimensions
  */
 function drawBoard() {
     if (!boardCtx) return;
 
-    // Store visualization parameters globally
-    window.manualVisualizationParams = {
-        minX: 0,
-        minY: 0,
-        maxX: BOARD_WIDTH,
-        maxY: BOARD_HEIGHT,
-        boardWidth: BOARD_WIDTH,
-        boardHeight: BOARD_HEIGHT
-    };
-
     if (boardDimensionsDisplay) {
-        boardDimensionsDisplay.textContent = `${BOARD_WIDTH}mm × ${BOARD_HEIGHT}mm`;
+        const width = coordinateLimits.x.max - coordinateLimits.x.min;
+        const height = coordinateLimits.y.max - coordinateLimits.y.min;
+        boardDimensionsDisplay.textContent = `Working Area: ${width}mm × ${height}mm`;
     }
 
     updateVisualization();
@@ -382,126 +450,11 @@ function drawBoard() {
  * Update visualization with current and target positions
  */
 function updateVisualization() {
-    if (!boardCtx || !window.manualVisualizationParams) return;
+    if (!boardCtx) return;
 
-    const canvas = boardCanvas;
-    const ctx = boardCtx;
-    const params = window.manualVisualizationParams;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Add padding
-    const padding = 40;
-    const drawWidth = canvas.width - 2 * padding;
-    const drawHeight = canvas.height - 2 * padding;
-
-    // Calculate scale
-    const scaleX = drawWidth / params.boardWidth;
-    const scaleY = drawHeight / params.boardHeight;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Center the board
-    const boardPixelWidth = params.boardWidth * scale;
-    const boardPixelHeight = params.boardHeight * scale;
-    const offsetX = padding + (drawWidth - boardPixelWidth) / 2;
-    const offsetY = padding + (drawHeight - boardPixelHeight) / 2;
-
-    // Helper function to convert world coordinates to canvas coordinates
-    const worldToCanvas = (worldX, worldY) => {
-        const canvasX = offsetX + (worldX - params.minX) * scale;
-        const canvasY = offsetY + (worldY - params.minY) * scale;
-        return { x: canvasX, y: canvasY };
-    };
-
-    // Draw PCB background
-    ctx.fillStyle = '#2d5016';
-    ctx.fillRect(offsetX, offsetY, boardPixelWidth, boardPixelHeight);
-
-    // Draw grid
-    ctx.strokeStyle = '#3d6020';
-    ctx.lineWidth = 0.5;
-    const gridSpacing = 10; // 10mm grid
-
-    for (let x = Math.ceil(params.minX / gridSpacing) * gridSpacing; x <= params.maxX; x += gridSpacing) {
-        const canvasPos = worldToCanvas(x, params.minY);
-        ctx.beginPath();
-        ctx.moveTo(canvasPos.x, offsetY);
-        ctx.lineTo(canvasPos.x, offsetY + boardPixelHeight);
-        ctx.stroke();
-    }
-
-    for (let y = Math.ceil(params.minY / gridSpacing) * gridSpacing; y <= params.maxY; y += gridSpacing) {
-        const canvasPos = worldToCanvas(params.minX, y);
-        ctx.beginPath();
-        ctx.moveTo(offsetX, canvasPos.y);
-        ctx.lineTo(offsetX + boardPixelWidth, canvasPos.y);
-        ctx.stroke();
-    }
-
-    // Draw origin marker
-    const origin = worldToCanvas(0, 0);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(origin.x - 10, origin.y);
-    ctx.lineTo(origin.x + 10, origin.y);
-    ctx.moveTo(origin.x, origin.y - 10);
-    ctx.lineTo(origin.x, origin.y + 10);
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '12px monospace';
-    ctx.fillText('(0,0)', origin.x + 12, origin.y - 5);
-
-    // Draw target position (if set)
-    const currentPos = worldToCanvas(currentPosition.x, currentPosition.y);
-    const targetPos = worldToCanvas(targetPosition.x, targetPosition.y);
-
-    // Calculate distance between current and target
-    const dx = targetPosition.x - currentPosition.x;
-    const dy = targetPosition.y - currentPosition.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Draw line from current to target if they're different
-    if (distance > 1) {
-        ctx.strokeStyle = '#0066ff';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(currentPos.x, currentPos.y);
-        ctx.lineTo(targetPos.x, targetPos.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    // Draw target position marker (blue dashed circle)
-    if (distance > 1) {
-        ctx.strokeStyle = '#0066ff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.arc(targetPos.x, targetPos.y, 12, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    // Draw current position marker (red crosshair)
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(currentPos.x - 10, currentPos.y);
-    ctx.lineTo(currentPos.x + 10, currentPos.y);
-    ctx.moveTo(currentPos.x, currentPos.y - 10);
-    ctx.lineTo(currentPos.x, currentPos.y + 10);
-    ctx.stroke();
-
-    // Red circle
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(currentPos.x, currentPos.y, 8, 0, 2 * Math.PI);
-    ctx.stroke();
+    // Use machine_canvas module to draw everything
+    // Pass currentPosition as target if no target is set (distance will be 0, no path drawn)
+    drawMachineCanvas(boardCtx, coordinateLimits, currentPosition, targetPosition || currentPosition);
 }
 
 // Cleanup on page unload

@@ -14,22 +14,9 @@
 #include "gcode_parser.h"
 #include "execution_fsm.h"
 #include "StepperMotor.hpp"
+#include "system_config.h"
 
 static const char *TAG = "WEB_SERVER";
-
-// External motor objects (defined in main.cpp)
-extern StepperMotor* motor_x;
-extern StepperMotor* motor_y;
-extern StepperMotor* motor_z;
-
-// External GCode RAM buffer (defined in main.cpp)
-extern char* g_gcode_buffer;
-extern size_t g_gcode_size;
-extern bool g_gcode_loaded;
-extern SemaphoreHandle_t g_gcode_mutex;
-
-// External execution sub-FSM (defined in main.cpp)
-extern execution_sub_fsm_t exec_sub_fsm;
 
 // Declare embedded files (created by CMake EMBED_FILES)
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
@@ -52,6 +39,15 @@ extern const uint8_t manual_js_end[] asm("_binary_manual_js_end");
 
 extern const uint8_t exec_js_start[] asm("_binary_exec_js_start");
 extern const uint8_t exec_js_end[] asm("_binary_exec_js_end");
+
+extern const uint8_t board_visualization_js_start[] asm("_binary_board_visualization_js_start");
+extern const uint8_t board_visualization_js_end[] asm("_binary_board_visualization_js_end");
+
+extern const uint8_t board_canvas_js_start[] asm("_binary_board_canvas_js_start");
+extern const uint8_t board_canvas_js_end[] asm("_binary_board_canvas_js_end");
+
+extern const uint8_t machine_canvas_js_start[] asm("_binary_machine_canvas_js_start");
+extern const uint8_t machine_canvas_js_end[] asm("_binary_machine_canvas_js_end");
 
 /**
  * @brief Structure for embedded file mapping
@@ -85,6 +81,9 @@ static const embedded_file_t* get_embedded_file(const char* uri) {
         {"/app.js", app_js_start, app_js_end, "application/javascript"},
         {"/manual.js", manual_js_start, manual_js_end, "application/javascript"},
         {"/exec.js", exec_js_start, exec_js_end, "application/javascript"},
+        {"/board_visualization.js", board_visualization_js_start, board_visualization_js_end, "application/javascript"},
+        {"/board_canvas.js", board_canvas_js_start, board_canvas_js_end, "application/javascript"},
+        {"/machine_canvas.js", machine_canvas_js_start, machine_canvas_js_end, "application/javascript"},
     };
 
     for (size_t i = 0; i < sizeof(embedded_files) / sizeof(embedded_files[0]); i++) {
@@ -766,7 +765,7 @@ static esp_err_t manual_set_origin_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Setting origin to current position: X=%.2f mm, Y=%.2f mm", x_origin, y_origin);
 
     // Set origin in execution sub-FSM
-    exec_sub_fsm_set_origin(&exec_sub_fsm, x_origin, y_origin);
+    exec_sub_fsm_set_origin(&g_exec_sub_fsm, x_origin, y_origin);
 
     // Format JSON response
     char json[256];

@@ -83,15 +83,15 @@ double soldering_iron_hal_get_power(soldering_iron_handle_t handle);
 double soldering_iron_hal_get_power(soldering_iron_handle_t handle);
 
 /**
- * @brief Встановлює нові константи ПІД-регулятора
- * @param kp Пропорційний коефіцієнт
- * @param ki Інтегральний коефіцієнт
- * @param kd Диференціальний коефіцієнт
+ * @brief Sets new PID controller constants
+ * @param kp Proportional coefficient
+ * @param ki Integral coefficient
+ * @param kd Derivative coefficient
  */
 void soldering_iron_hal_set_pid_constants(soldering_iron_handle_t handle, double kp, double ki, double kd);
 
 /**
- * @brief Отримує поточні константи ПІД-регулятора
+ * @brief Gets current PID controller constants
  */
 void soldering_iron_hal_get_pid_constants(soldering_iron_handle_t handle, double *kp, double *ki, double *kd);
 

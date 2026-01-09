@@ -32,14 +32,12 @@
 
         <section id="preview-section" style="display: none;">
             <h2>Board Preview</h2>
-            <div class="visualization-container">
-                <div class="canvas-wrapper">
-                    <canvas id="board-canvas" width="800" height="600"></canvas>
-                </div>
-                <div class="visualization-info">
-                    <span id="drill-count">0 holes</span>
-                    <span id="board-dimensions">Board: 0x0 mm</span>
-                </div>
+            <div class="canvas-wrapper">
+                <canvas id="board-canvas" width="800" height="600"></canvas>
+            </div>
+            <div class="visualization-info">
+                <span id="drill-count">0 holes</span>
+                <span id="board-dimensions">Board: 0x0 mm</span>
             </div>
             <div class="preview-container">
                 <div class="preview-pane">
@@ -67,6 +65,8 @@
     <footer>
     </footer>
 
+    <script src="board_visualization.js"></script>
+    <script src="board_canvas.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -70,12 +70,12 @@ public:
     bool isInitialized() const { return handle_ != nullptr; }
 
     /**
-     * @brief Встановлює нові константи ПІД-регулятора
+     * @brief Sets new PID controller constants
      */
     void setPIDConstants(double kp, double ki, double kd);
 
     /**
-     * @brief Отримує поточні константи ПІД-регулятора
+     * @brief Gets current PID controller constants
      */
     void getPIDConstants(double &kp, double &ki, double &kd) const;
 

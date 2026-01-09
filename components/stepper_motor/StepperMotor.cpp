@@ -225,15 +225,9 @@ void StepperMotor::calibrate() {
     setEnable(true);
     setDirection((positive_direction_ == STEPPER_DIR_CLOCKWISE) ? STEPPER_DIR_COUNTERCLOCKWISE : STEPPER_DIR_CLOCKWISE);
 
-    uint32_t steps_count = 0;
     while (!isEndpointReached()) {
-        stepper_motor_hal_step_multiple(handle_, 5000, true);
-        steps_count++;
-
-        // Yield more frequently to prevent watchdog timeout and WiFi disconnection
-        if (steps_count % 2 == 0) {
-            vTaskDelay(pdMS_TO_TICKS(20));
-        }
+        stepper_motor_hal_step_multiple(handle_, 50000, true); // Step in small increments
+        vTaskDelay(pdMS_TO_TICKS(2)); // Small delay to avoid busy-waiting
     }
 
     resetPosition();

@@ -490,47 +490,8 @@ function visualizeDrillHoles() {
         return;
     }
 
-    // Calculate board dimensions from drill points
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-
-    for (const point of drillPoints) {
-        minX = Math.min(minX, point.x);
-        maxX = Math.max(maxX, point.x);
-        minY = Math.min(minY, point.y);
-        maxY = Math.max(maxY, point.y);
-    }
-
-    // Add margin around the board (10mm on each side)
-    const margin = 10;
-    const boardWidth = (maxX - minX) + (2 * margin);
-    const boardHeight = (maxY - minY) + (2 * margin);
-
-    // Canvas dimensions
-    const canvasWidth = boardCanvas.width;
-    const canvasHeight = boardCanvas.height;
-
-    // Calculate scale to fit board in canvas with padding
-    const padding = 40;
-    const scaleX = (canvasWidth - 2 * padding) / boardWidth;
-    const scaleY = (canvasHeight - 2 * padding) / boardHeight;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Calculate offset to center the board
-    const scaledBoardWidth = boardWidth * scale;
-    const scaledBoardHeight = boardHeight * scale;
-    const offsetX = (canvasWidth - scaledBoardWidth) / 2;
-    const offsetY = (canvasHeight - scaledBoardHeight) / 2;
-
-    // Store visualization parameters globally for hover detection
-    window.visualizationParams = {
-        minX, minY, maxX, maxY,
-        margin, scale,
-        offsetX, offsetY,
-        canvasWidth, canvasHeight,
-        scaledBoardWidth, scaledBoardHeight
-    };
-
+    // Calculate visualization parameters
+    window.visualizationParams = calculateBoardCanvasParams(boardCanvas, drillPoints, 0);
     drawCanvas();
 }
 
@@ -540,152 +501,12 @@ function visualizeDrillHoles() {
 function drawCanvas(hoveredIndex = -1) {
     if (!boardCtx || !window.visualizationParams) return;
 
-    const { minX, minY, margin, scale, offsetX, offsetY, 
-            canvasWidth, canvasHeight, scaledBoardWidth, scaledBoardHeight, maxX, maxY } = window.visualizationParams;
-    const boardWidth = (maxX - minX) + (2 * margin);
-    const boardHeight = (maxY - minY) + (2 * margin);
-
-    // Clear canvas
-    boardCtx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    // Draw background
-    boardCtx.fillStyle = '#f5f5f5';
-    boardCtx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-    // Draw board rectangle
-    boardCtx.fillStyle = '#2d5016';
-    boardCtx.strokeStyle = '#1a3010';
-    boardCtx.lineWidth = 2;
-    boardCtx.fillRect(offsetX, offsetY, scaledBoardWidth, scaledBoardHeight);
-    boardCtx.strokeRect(offsetX, offsetY, scaledBoardWidth, scaledBoardHeight);
-
-    // Draw grid lines (optional, for reference)
-    boardCtx.strokeStyle = '#3a6820';
-    boardCtx.lineWidth = 0.5;
-    boardCtx.setLineDash([3, 3]);
-
-    // Vertical grid lines every 10mm
-    for (let x = 0; x <= boardWidth; x += 10) {
-        const canvasX = offsetX + x * scale;
-        boardCtx.beginPath();
-        boardCtx.moveTo(canvasX, offsetY);
-        boardCtx.lineTo(canvasX, offsetY + scaledBoardHeight);
-        boardCtx.stroke();
-    }
-
-    // Horizontal grid lines every 10mm
-    for (let y = 0; y <= boardHeight; y += 10) {
-        const canvasY = offsetY + y * scale;
-        boardCtx.beginPath();
-        boardCtx.moveTo(offsetX, canvasY);
-        boardCtx.lineTo(offsetX + scaledBoardWidth, canvasY);
-        boardCtx.stroke();
-    }
-
-    boardCtx.setLineDash([]);
-
-    // Draw drill holes (in two passes: holes first, then tooltip on top)
-    for (let i = 0; i < drillPoints.length; i++) {
-        const point = drillPoints[i];
-
-        // Calculate position on canvas
-        const x = offsetX + (point.x - minX + margin) * scale;
-        const y = offsetY + (point.y - minY + margin) * scale;
-
-        // Draw hole (circle)
-        const holeRadius = Math.max(3, scale * 0.8);  // At least 3px, scales with board
-
-        // Check if hole is excluded
-        const isExcluded = excludedHoles.has(i);
-        const isHovered = (i === hoveredIndex);
-
-        // Outer circle (copper pad) - red if excluded, gold if hovered, normal otherwise
-        if (isExcluded) {
-            boardCtx.fillStyle = '#616161ff';
-        } else {
-            boardCtx.fillStyle = isHovered ? '#ffd700' : '#d4af37';
-        }
-        boardCtx.beginPath();
-        boardCtx.arc(x, y, holeRadius * (isHovered ? 2 : 1.5), 0, Math.PI * 2);
-        boardCtx.fill();
-
-        // Inner circle (drill hole)
-        boardCtx.fillStyle = '#1a1a1a';
-        boardCtx.beginPath();
-        boardCtx.arc(x, y, holeRadius, 0, Math.PI * 2);
-        boardCtx.fill();
-
-        if (!isExcluded && drillPoints.length <= 50) {
-            // Hole number (for small number of holes, only if not excluded)
-            boardCtx.fillStyle = '#ffffff';
-            boardCtx.font = `${Math.max(8, scale * 1.5)}px Arial`;
-            boardCtx.textAlign = 'center';
-            boardCtx.textBaseline = 'middle';
-            boardCtx.fillText((i + 1).toString(), x, y);
-        }
-    }
-
-    // Draw tooltip on top of everything (second pass)
-    if (hoveredIndex >= 0 && hoveredIndex < drillPoints.length) {
-        const point = drillPoints[hoveredIndex];
-        const x = offsetX + (point.x - minX + margin) * scale;
-        const y = offsetY + (point.y - minY + margin) * scale;
-        const holeRadius = Math.max(3, scale * 0.8);
-        const isExcluded = excludedHoles.has(hoveredIndex);
-
-        const tooltipText = isExcluded 
-            ? `Hole ${hoveredIndex + 1} - EXCLUDED`
-            : `Hole ${hoveredIndex + 1}: (${point.x.toFixed(2)}, ${point.y.toFixed(2)}) mm`;
-        
-        // Measure text width for background
-        boardCtx.font = '14px Arial';
-        const textMetrics = boardCtx.measureText(tooltipText);
-        const tooltipWidth = textMetrics.width + 16;
-        const tooltipHeight = 24;
-        
-        // Position tooltip above the hole
-        let tooltipX = x - tooltipWidth / 2;
-        let tooltipY = y - holeRadius * 2 - tooltipHeight - 5;
-        
-        // Keep tooltip within canvas bounds
-        if (tooltipX < 5) tooltipX = 5;
-        if (tooltipX + tooltipWidth > canvasWidth - 5) tooltipX = canvasWidth - tooltipWidth - 5;
-        if (tooltipY < 5) tooltipY = y + holeRadius * 2 + 5;
-        
-        // Draw tooltip background
-        boardCtx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-        boardCtx.strokeStyle = isExcluded ? '#cc0000' : '#ffd700';
-        boardCtx.lineWidth = 2;
-        boardCtx.beginPath();
-        boardCtx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
-        boardCtx.fill();
-        boardCtx.stroke();
-        
-        // Draw tooltip text
-        boardCtx.fillStyle = '#ffffff';
-        boardCtx.textAlign = 'left';
-        boardCtx.textBaseline = 'middle';
-        boardCtx.fillText(tooltipText, tooltipX + 8, tooltipY + tooltipHeight / 2);
-    }
-
-    // Draw coordinate axes
-    boardCtx.strokeStyle = '#333';
-    boardCtx.lineWidth = 1;
-    boardCtx.font = '12px Arial';
-    boardCtx.fillStyle = '#333';
-
-    // Origin marker
-    const originX = offsetX + margin * scale;
-    const originY = offsetY + margin * scale;
-    boardCtx.beginPath();
-    boardCtx.moveTo(originX - 5, originY);
-    boardCtx.lineTo(originX + 5, originY);
-    boardCtx.moveTo(originX, originY - 5);
-    boardCtx.lineTo(originX, originY + 5);
-    boardCtx.stroke();
-    boardCtx.fillText('(0,0)', originX + 8, originY - 8);
+    // Use board_canvas module to draw everything
+    drawBoardCanvas(boardCtx, window.visualizationParams, drillPoints, null, excludedHoles, hoveredIndex);
 
     // Update info displays
+    const { minX, maxX, minY, maxY } = window.visualizationParams;
+    
     if (drillCountDisplay) {
         const includedCount = drillPoints.length - excludedHoles.size;
         const excludedCount = excludedHoles.size;
@@ -712,32 +533,21 @@ function handleCanvasClick(event) {
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
 
-    const { minX, minY, margin, scale, offsetX, offsetY } = window.visualizationParams;
-    const holeRadius = Math.max(3, scale * 0.8);
-    const clickDistance = holeRadius * 2;
-
-    // Find clicked hole
-    for (let i = 0; i < drillPoints.length; i++) {
-        const point = drillPoints[i];
-        const x = offsetX + (point.x - minX + margin) * scale;
-        const y = offsetY + (point.y - minY + margin) * scale;
-
-        const distance = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
-        if (distance <= clickDistance) {
-            // Toggle exclusion
-            if (excludedHoles.has(i)) {
-                excludedHoles.delete(i);
-            } else {
-                excludedHoles.add(i);
-            }
-            
-            // Redraw canvas with updated exclusions
-            drawCanvas(window.lastHoveredIndex);
-            
-            // Update preview displays in real-time
-            updatePreviewDisplays();
-            break;
+    const clickedIndex = findHoveredHole(mouseX, mouseY, drillPoints, window.visualizationParams);
+    
+    if (clickedIndex >= 0) {
+        // Toggle exclusion
+        if (excludedHoles.has(clickedIndex)) {
+            excludedHoles.delete(clickedIndex);
+        } else {
+            excludedHoles.add(clickedIndex);
         }
+        
+        // Redraw canvas with updated exclusions
+        drawCanvas(window.lastHoveredIndex);
+        
+        // Update preview displays in real-time
+        updatePreviewDisplays();
     }
 }
 
@@ -753,29 +563,9 @@ function handleCanvasHover(event) {
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
 
-    const { minX, minY, margin, scale, offsetX, offsetY } = window.visualizationParams;
-    const holeRadius = Math.max(3, scale * 0.8);
-    const hoverDistance = holeRadius * 2;  // Detection radius
+    const hoveredIndex = findHoveredHole(mouseX, mouseY, drillPoints, window.visualizationParams);
 
-    let hoveredIndex = -1;
-
-    // Check if mouse is over any hole
-    for (let i = 0; i < drillPoints.length; i++) {
-        const point = drillPoints[i];
-        const x = offsetX + (point.x - minX + margin) * scale;
-        const y = offsetY + (point.y - minY + margin) * scale;
-
-        const distance = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
-        if (distance <= hoverDistance) {
-            hoveredIndex = i;
-            boardCanvas.style.cursor = 'pointer';
-            break;
-        }
-    }
-
-    if (hoveredIndex === -1) {
-        boardCanvas.style.cursor = 'default';
-    }
+    boardCanvas.style.cursor = (hoveredIndex >= 0) ? 'pointer' : 'default';
 
     // Redraw if hover state changed
     if (hoveredIndex !== window.lastHoveredIndex) {

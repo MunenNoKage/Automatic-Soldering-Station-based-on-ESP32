@@ -1,19 +1,19 @@
 /**
  * @file SolderingIron.cpp
- * @brief C++ реалізація для SolderingIron
+ * @brief C++ implementation for SolderingIron
  */
 
 #include "SolderingIron.hpp"
 #include "esp_log.h"
-#include <utility> // Для std::swap
+#include <utility> // For std::swap
 
 static const char *TAG = "SolderingIronCPP";
 
-// --- Конструктор ---
+// --- Constructor ---
 SolderingIron::SolderingIron(const soldering_iron_config_t &config)
     : handle_(nullptr)
 {
-    // Викликаємо C-HAL для ініціалізації
+    // Call C-HAL for initialization
     handle_ = soldering_iron_hal_init(&config);
     if (!isInitialized())
     {
@@ -25,12 +25,12 @@ SolderingIron::SolderingIron(const soldering_iron_config_t &config)
     }
 }
 
-// --- Деструктор ---
+// --- Destructor ---
 SolderingIron::~SolderingIron()
 {
     if (isInitialized())
     {
-        // Викликаємо C-HAL для деініціалізації
+        // Call C-HAL for deinitialization
         soldering_iron_hal_deinit(handle_);
         handle_ = nullptr;
     }
@@ -58,7 +58,7 @@ SolderingIron &SolderingIron::operator=(SolderingIron &&other) noexcept
     return *this;
 }
 
-// --- Реалізація методів ---
+// --- Implementation of methods ---
 
 void SolderingIron::setPower(double duty_cycle)
 {
@@ -102,15 +102,15 @@ double SolderingIron::getPower() const
     return soldering_iron_hal_get_power(handle_);
 }
 
-// --- Реалізація нових ПІД-функцій ---
+// --- Implementation of new PID functions ---
 
 void SolderingIron::setPIDConstants(double kp, double ki, double kd)
 {
     if (!isInitialized())
         return;
 
-    // Примітка: ця функція ще не існує у вашому C-HAL.
-    // Див. крок 3 нижче.
+    // Note: this function does not exist in your C-HAL yet.
+    // See step 3 below.
     soldering_iron_hal_set_pid_constants(handle_, kp, ki, kd);
 }
 
@@ -124,7 +124,7 @@ void SolderingIron::getPIDConstants(double &kp, double &ki, double &kd) const
         return;
     }
 
-    // Примітка: ця функція ще не існує у вашому C-HAL.
-    // Див. крок 3 нижче.
+    // Note: this function does not exist in your C-HAL yet.
+    // See step 3 below.
     soldering_iron_hal_get_pid_constants(handle_, &kp, &ki, &kd);
 }
