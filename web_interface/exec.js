@@ -265,7 +265,7 @@ function startPositionPolling() {
                 currentPosition = position;
                 
                 if (currentPositionDisplay) {
-                    currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
+                    currentPositionDisplay.textContent = `Position: X: ${position.x.toFixed(2)}, Y: ${position.y.toFixed(2)}, Z: ${position.z.toFixed(2)} mm`;
                 }
                 
                 if (boardCanvas) {
@@ -301,7 +301,7 @@ function drawBoard() {
     window.execVisualizationParams = params;
 
     if (boardDimensionsDisplay) {
-        boardDimensionsDisplay.textContent = `${(params.maxX - params.minX).toFixed(1)}mm × ${(params.maxY - params.minY).toFixed(1)}mm`;
+        boardDimensionsDisplay.textContent = `Working space: ${(params.maxX - params.minX).toFixed(1)} × ${(params.maxY - params.minY).toFixed(1)} mm`;
     }
 
     updateVisualization();

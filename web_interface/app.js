@@ -390,12 +390,7 @@ function regenerateGCodeWithExclusions() {
     let gcode = [];
     
     // Add header comments
-    gcode.push('; G-Code generated from Excellon drill file');
     gcode.push('; Generated: ' + new Date().toISOString());
-    gcode.push('; Soldering Station Automatic Controller');
-    if (excludedHoles.size > 0) {
-        gcode.push(`; Excluded holes: ${excludedHoles.size}`);
-    }
     gcode.push('');
 
     // Filter out excluded holes
