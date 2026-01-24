@@ -126,7 +126,7 @@ async function handlePause() {
 
         if (response.ok) {
             const result = await response.json();
-            
+
             // Disable heating when paused
             await fetch('/api/heating/disable', {
                 method: 'POST',
@@ -134,7 +134,7 @@ async function handlePause() {
                     'Content-Type': 'application/json',
                 }
             });
-            
+
             controlStatus.textContent = 'Execution paused, heating disabled';
             controlStatus.className = 'upload-status success';
 
@@ -167,7 +167,7 @@ async function handleResume() {
                 'Content-Type': 'application/json',
             }
         });
-        
+
         const response = await fetch('/api/gcode/resume', {
             method: 'POST',
             headers: {

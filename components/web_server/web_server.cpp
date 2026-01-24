@@ -816,10 +816,10 @@ static esp_err_t position_status_handler(httpd_req_t *req) {
 
     // Format JSON response with temperature and FSM state
     char json[220];
-    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"temperature\":%.1f,\"fsm_state\":%d}", 
+    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"temperature\":%.1f,\"fsm_state\":%d}",
              x_mm, y_mm, z_mm, temperature, fsm_state);
 
-    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm, Temp=%.1f°C", 
+    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm, Temp=%.1f°C",
              x_mm, y_mm, z_mm, temperature);
 
     httpd_resp_set_type(req, "application/json");
