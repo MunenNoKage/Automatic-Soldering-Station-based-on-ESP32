@@ -140,11 +140,11 @@ function handleCanvasClick(event) {
     if (!boardCanvas) return;
 
     const rect = boardCanvas.getBoundingClientRect();
-    
+
     // Get click position relative to canvas element
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
-    
+
     // Scale to canvas internal coordinates (canvas might be scaled via CSS)
     const scaleX = boardCanvas.width / rect.width;
     const scaleY = boardCanvas.height / rect.height;
@@ -163,10 +163,10 @@ function handleCanvasClick(event) {
     if (manualYInput) manualYInput.value = y.toFixed(1);
 
     // Update target position for visualization
-    targetPosition = { 
-        x: x, 
-        y: y, 
-        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z 
+    targetPosition = {
+        x: x,
+        y: y,
+        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z
     };
 
     // Redraw visualization to show target
@@ -328,6 +328,7 @@ async function handleManualExit() {
             if (manualMoveBtn) manualMoveBtn.disabled = true;
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = true;
             if (manualExitBtn) manualExitBtn.disabled = true;
+            if (solderFeedBtn) solderFeedBtn.disabled = true;
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to exit manual mode');
             manualStatus.className = 'upload-status error';
@@ -404,7 +405,7 @@ function startPositionPolling() {
                     const dx = Math.abs(position.x - targetPosition.x);
                     const dy = Math.abs(position.y - targetPosition.y);
                     const dz = Math.abs(position.z - targetPosition.z);
-                    
+
                     // If within 0.5mm of target on all axes, clear target
                     if (dx < 0.5 && dy < 0.5 && dz < 0.5) {
                         targetPosition = null;

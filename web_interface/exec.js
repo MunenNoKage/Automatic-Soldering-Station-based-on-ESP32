@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load G-code data and initialize visualization
     loadGCodeData();
-    
+
     // Start position polling
     startPositionPolling();
 });
@@ -85,7 +85,7 @@ async function handleStart() {
             const result = await response.json();
             controlStatus.textContent = 'Execution started';
             controlStatus.className = 'upload-status success';
-            
+
             // Update button states
             startBtn.disabled = true;
             pauseBtn.disabled = false;
@@ -224,18 +224,18 @@ function loadGCodeData() {
     // Parse G-code to extract drill points
     drillPoints = [];
     const lines = gcode.split('\n');
-    
+
     for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
             let x = null, y = null;
-            
+
             const xMatch = trimmed.match(/X([-]?\d+\.?\d*)/);
             const yMatch = trimmed.match(/Y([-]?\d+\.?\d*)/);
-            
+
             if (xMatch) x = parseFloat(xMatch[1]);
             if (yMatch) y = parseFloat(yMatch[1]);
-            
+
             if (x !== null && y !== null) {
                 drillPoints.push({ x, y });
             }
@@ -243,7 +243,7 @@ function loadGCodeData() {
     }
 
     console.log(`Loaded ${drillPoints.length} drill points from G-code`);
-    
+
     if (drillPoints.length > 0 && boardCanvas) {
         drawBoard();
     }
@@ -263,11 +263,11 @@ function startPositionPolling() {
             if (response.ok) {
                 const position = await response.json();
                 currentPosition = position;
-                
+
                 if (currentPositionDisplay) {
                     currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
                 }
-                
+
                 if (boardCanvas) {
                     updateVisualization();
                 }
@@ -296,7 +296,7 @@ function drawBoard() {
 
     // Calculate visualization parameters using board_canvas module
     const params = calculateBoardCanvasParams(boardCanvas, drillPoints, 0);
-    
+
     // Store visualization parameters globally
     window.execVisualizationParams = params;
 

@@ -14,7 +14,14 @@
 </head>
 <body>
     <header>
-        <h1>Automatic Soldering Station</h1>
+        <div class="header-content">
+            <h1>Automatic Soldering Station</h1>
+            <nav class="page-navigation">
+                <button class="nav-btn" onclick="window.location.href='index.html'">Home</button>
+                <button class="nav-btn nav-btn-active">Manual Control</button>
+                <button class="nav-btn" onclick="window.location.href='exec.html'">Execution</button>
+            </nav>
+        </div>
     </header>
 
     <main>
@@ -46,6 +53,7 @@
                     <button id="manual-enter-btn" class="btn-manual btn-start">Calibrate</button>
                     <button id="manual-move-btn" class="btn-manual btn-resume" disabled>Move to Position</button>
                     <button id="manual-set-origin-btn" class="btn-manual btn-pause" disabled>Set Origin Here</button>
+                    <button id="manual-exit-btn" class="btn-manual btn-stop" disabled>Exit Manual Control</button>
                 </div>
             </div>
             <div class="solder-controls">

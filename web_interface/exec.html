@@ -2,7 +2,7 @@
 <!--
   @file exec.html
   @brief Execution control page for automatic soldering station
-  
+
   Provides UI for controlling G-Code execution (start, pause, resume, stop).
 -->
 <html lang="en">
@@ -14,7 +14,14 @@
 </head>
 <body>
     <header>
-        <h1>Automatic Soldering Station</h1>
+        <div class="header-content">
+            <h1>Automatic Soldering Station</h1>
+            <nav class="page-navigation">
+                <button class="nav-btn" onclick="window.location.href='index.html'">Home</button>
+                <button class="nav-btn" onclick="window.location.href='manual.html'">Manual Control</button>
+                <button class="nav-btn nav-btn-active">Execution</button>
+            </nav>
+        </div>
     </header>
 
     <main>
