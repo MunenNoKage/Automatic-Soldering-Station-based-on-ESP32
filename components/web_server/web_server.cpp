@@ -801,15 +801,78 @@ static esp_err_t position_status_handler(httpd_req_t *req) {
         z_mm = motor_z->microsteps_to_mm(motor_z->getPosition());
     }
 
-    // Format JSON response
-    char json[128];
-    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}", x_mm, y_mm, z_mm);
+    // Read current temperature
+    double temperature = 0.0;
+    if (g_temp_sensor_handle) {
+        temperature_sensor_hal_read_temperature(g_temp_sensor_handle, &temperature);
+    }
 
-    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm", x_mm, y_mm, z_mm);
+    // Get current FSM state
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+    int fsm_state = 0;  // Default to INIT
+    if (server_handle && server_handle->fsm_handle) {
+        fsm_state = (int)fsm_controller_get_state(server_handle->fsm_handle);
+    }
+
+    // Format JSON response with temperature and FSM state
+    char json[220];
+    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"temperature\":%.1f,\"fsm_state\":%d}", 
+             x_mm, y_mm, z_mm, temperature, fsm_state);
+
+    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm, Temp=%.1f°C", 
+             x_mm, y_mm, z_mm, temperature);
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for enabling heating
+ */
+static esp_err_t heating_enable_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Heating enable request received");
+
+    if (g_iron_handle) {
+        soldering_iron_hal_set_enable(g_iron_handle, true);
+        ESP_LOGI(TAG, "Heating enabled");
+
+        const char* response = "{\"success\":true,\"message\":\"Heating enabled\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_send(req, response, strlen(response));
+    } else {
+        const char* response = "{\"success\":false,\"message\":\"Soldering iron not initialized\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_send(req, response, strlen(response));
+    }
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for disabling heating
+ */
+static esp_err_t heating_disable_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Heating disable request received");
+
+    if (g_iron_handle) {
+        soldering_iron_hal_set_enable(g_iron_handle, false);
+        ESP_LOGI(TAG, "Heating disabled");
+
+        const char* response = "{\"success\":true,\"message\":\"Heating disabled\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_send(req, response, strlen(response));
+    } else {
+        const char* response = "{\"success\":false,\"message\":\"Soldering iron not initialized\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_send(req, response, strlen(response));
+    }
 
     return ESP_OK;
 }
@@ -969,6 +1032,23 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &manual_solder_uri);
+
+    // Heating control endpoints
+    httpd_uri_t heating_enable_uri = {
+        .uri = "/api/heating/enable",
+        .method = HTTP_POST,
+        .handler = heating_enable_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &heating_enable_uri);
+
+    httpd_uri_t heating_disable_uri = {
+        .uri = "/api/heating/disable",
+        .method = HTTP_POST,
+        .handler = heating_disable_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &heating_disable_uri);
 
     // Motor control endpoints
     httpd_uri_t motor_control_uri = {

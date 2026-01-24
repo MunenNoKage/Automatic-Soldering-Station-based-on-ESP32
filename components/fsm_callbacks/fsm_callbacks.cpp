@@ -469,7 +469,7 @@ bool on_execute_heating(void* user_data) {
     if (current_time - last_temp_read_time >= 250) {
         // Read current temperature
         current_temp = get_current_temperature();
-        ESP_LOGI(TAG, "temp: %.2f", current_temp);
+        // ESP_LOGI(TAG, "temp: %.2f", current_temp);
         if (current_temp < 0) {
             ESP_LOGE(TAG, "Temperature sensor error: %.2f", current_temp);
             fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
@@ -578,7 +578,6 @@ bool on_execute_normal_exit(void* user_data) {
                  current_temp, config->safe_temperature, time_cooldown / 1000);
     }
 
-    // Check for timeout (10 minutes)
     if (time_cooldown > config->cooldown_timeout_ms) {
         ESP_LOGW(TAG, "Cooldown timeout (10 min)! Current temp: %.1f°C", current_temp);
         fsm_controller_post_event(fsm_handle, FSM_EVENT_COOLING_ERROR);
