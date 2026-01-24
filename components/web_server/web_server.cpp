@@ -835,20 +835,27 @@ static esp_err_t position_status_handler(httpd_req_t *req) {
 static esp_err_t heating_enable_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Heating enable request received");
 
-    if (g_iron_handle) {
-        soldering_iron_hal_set_enable(g_iron_handle, true);
-        ESP_LOGI(TAG, "Heating enabled");
+    // Get web server handle (contains FSM handle)
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
 
-        const char* response = "{\"success\":true,\"message\":\"Heating enabled\"}";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        httpd_resp_send(req, response, strlen(response));
-    } else {
-        const char* response = "{\"success\":false,\"message\":\"Soldering iron not initialized\"}";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        httpd_resp_send(req, response, strlen(response));
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        // Post FSM event to transition to MANUAL_HEATING state
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_HEATING_START)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_HEATING_START to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_HEATING_START");
+        }
     }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Heating enabled\"}"
+        : "{\"success\":false,\"message\":\"Failed to enable heating\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
 
     return ESP_OK;
 }
@@ -859,20 +866,27 @@ static esp_err_t heating_enable_handler(httpd_req_t *req) {
 static esp_err_t heating_disable_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Heating disable request received");
 
-    if (g_iron_handle) {
-        soldering_iron_hal_set_enable(g_iron_handle, false);
-        ESP_LOGI(TAG, "Heating disabled");
+    // Get web server handle (contains FSM handle)
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
 
-        const char* response = "{\"success\":true,\"message\":\"Heating disabled\"}";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        httpd_resp_send(req, response, strlen(response));
-    } else {
-        const char* response = "{\"success\":false,\"message\":\"Soldering iron not initialized\"}";
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        httpd_resp_send(req, response, strlen(response));
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        // Post FSM event to transition back to MANUAL_CONTROL state
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_HEATING_STOP)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_HEATING_STOP to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_HEATING_STOP");
+        }
     }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Heating disabled\"}"
+        : "{\"success\":false,\"message\":\"Failed to disable heating\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
 
     return ESP_OK;
 }

@@ -99,9 +99,9 @@ static const system_config_t default_config = {
     .tick_rate_ms = 100,
     .target_temperature = CONFIG_SOLDERING_IRON_DEFAULT_TEMP,
     .temperature_tolerance = 20.0f,
-    .heating_timeout_ms = 60000,        // 60 seconds
-    .calibration_timeout_ms = 30000,    // 30 seconds
-    .safe_temperature = 150.0f,         // Safe handling temperature
+    .heating_timeout_ms = 600000,        // 10 minutes
+    .calibration_timeout_ms = 10000,    // 10 seconds
+    .safe_temperature = 450.0f,         // Safe handling temperature
     .cooldown_timeout_ms = 600000,      // 10 minutes
 
     // WiFi Configuration

@@ -64,6 +64,25 @@
             </div>
             <div id="manual-status" class="upload-status"></div>
         </section>
+
+        <section id="heating-section">
+            <h2>Heating Control</h2>
+            <div class="temperature-display">
+                <div class="temp-box">
+                    <span class="temp-label">Current Temperature:</span>
+                    <span id="current-temp" class="temp-value">--°C</span>
+                </div>
+                <div class="temp-box">
+                    <span class="temp-label">Target Temperature:</span>
+                    <span id="target-temp" class="temp-value">450°C</span>
+                </div>
+            </div>
+            <div class="heating-controls">
+                <button id="heating-enable-btn" class="btn-heating btn-heat-enable" disabled>Enable Heating</button>
+                <button id="heating-disable-btn" class="btn-heating btn-heat-disable" disabled>Disable Heating</button>
+            </div>
+            <div id="heating-status" class="upload-status"></div>
+        </section>
     </main>
 
     <footer>

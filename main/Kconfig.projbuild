@@ -208,7 +208,7 @@ menu "Automatic Soldering Station Configuration"
 
         config SOLDERING_IRON_DEFAULT_TEMP
             int "Default Temperature (°C)"
-            default 350
+            default 450
             help
                 Default temperature setting for soldering iron
     endmenu
