@@ -21,6 +21,7 @@ extern "C" {
     bool on_enter_idle(void* user_data);
     bool on_enter_manual_control(void* user_data);
     bool on_enter_manual_executing(void* user_data);
+    bool on_enter_manual_heating(void* user_data);
     bool on_enter_calibration(void* user_data);
     bool on_enter_ready(void* user_data);
     bool on_enter_heating(void* user_data);
@@ -31,8 +32,11 @@ extern "C" {
     bool on_enter_lock_state(void* user_data);
 
     bool on_exit_manual_control(void* user_data);
+    bool on_exit_manual_heating(void* user_data);
 
+    bool on_execute_manual_control(void* user_data);
     bool on_execute_manual_executing(void* user_data);
+    bool on_execute_manual_heating(void* user_data);
     bool on_execute_calibration(void* user_data);
     bool on_execute_heating(void* user_data);
     bool on_execute_executing(void* user_data);
@@ -110,6 +114,7 @@ void fsm_callbacks_register_all(fsm_controller_handle_t fsm) {
     fsm_controller_register_enter_callback(fsm, FSM_STATE_IDLE, on_enter_idle, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_MANUAL_CONTROL, on_enter_manual_control, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_MANUAL_EXECUTING, on_enter_manual_executing, nullptr);
+    fsm_controller_register_enter_callback(fsm, FSM_STATE_MANUAL_HEATING, on_enter_manual_heating, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_CALIBRATION, on_enter_calibration, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_READY, on_enter_ready, nullptr);
     fsm_controller_register_enter_callback(fsm, FSM_STATE_HEATING, on_enter_heating, nullptr);
@@ -123,9 +128,12 @@ void fsm_callbacks_register_all(fsm_controller_handle_t fsm) {
 
     // Register exit callbacks
     fsm_controller_register_exit_callback(fsm, FSM_STATE_MANUAL_CONTROL, on_exit_manual_control, nullptr);
+    fsm_controller_register_exit_callback(fsm, FSM_STATE_MANUAL_HEATING, on_exit_manual_heating, nullptr);
 
     // Register execute callbacks
+    fsm_controller_register_execute_callback(fsm, FSM_STATE_MANUAL_CONTROL, on_execute_manual_control, nullptr);
     fsm_controller_register_execute_callback(fsm, FSM_STATE_MANUAL_EXECUTING, on_execute_manual_executing, nullptr);
+    fsm_controller_register_execute_callback(fsm, FSM_STATE_MANUAL_HEATING, on_execute_manual_heating, nullptr);
     fsm_controller_register_execute_callback(fsm, FSM_STATE_CALIBRATION, on_execute_calibration, nullptr);
     fsm_controller_register_execute_callback(fsm, FSM_STATE_HEATING, on_execute_heating, nullptr);
     fsm_controller_register_execute_callback(fsm, FSM_STATE_EXECUTING, on_execute_executing, nullptr);
@@ -162,6 +170,34 @@ bool on_enter_manual_executing(void* user_data) {
     motor_y->setEnable(true);
     motor_z->setEnable(true);
     motor_s->setEnable(true);
+
+    return true;
+}
+
+bool on_enter_manual_heating(void* user_data) {
+    ESP_LOGI(TAG, "FSM: MANUAL_HEATING - Starting temperature control");
+
+    if (!iron_handle) {
+        ESP_LOGE(TAG, "Soldering iron not initialized!");
+        fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
+        return false;
+    }
+
+    // Get configuration from FSM
+    const fsm_config_t* config = fsm_controller_get_config(fsm_handle);
+    if (!config) {
+        ESP_LOGE(TAG, "Failed to get FSM configuration!");
+        fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
+        return false;
+    }
+
+    // Set target temperature
+    soldering_iron_hal_set_target_temperature(iron_handle, config->target_temperature);
+    ESP_LOGI(TAG, "Target temperature: %.1f°C", config->target_temperature);
+
+    // Enable heater
+    soldering_iron_hal_set_enable(iron_handle, true);
+    ESP_LOGI(TAG, "Heater enabled in manual mode");
 
     return true;
 }
@@ -348,9 +384,48 @@ bool on_exit_manual_control(void* user_data) {
     return true;
 }
 
+bool on_exit_manual_heating(void* user_data) {
+    ESP_LOGI(TAG, "FSM: Exiting MANUAL_HEATING - Disabling heater");
+
+    // Disable heater when exiting manual heating mode
+    if (iron_handle) {
+        soldering_iron_hal_set_enable(iron_handle, false);
+    }
+
+    return true;
+}
+
 // ============================================================================
 // State Execute Callbacks
 // ============================================================================
+
+bool on_execute_manual_control(void* user_data) {
+    // If heating is enabled in manual mode, maintain temperature control
+    if (!iron_handle) return true;
+
+    // Check if heater is enabled
+    bool heating_enabled = soldering_iron_hal_get_power(iron_handle) > 0;
+    if (!heating_enabled) {
+        return true; // No heating active, nothing to do
+    }
+
+    // MAX6675 requires minimum 220ms between readings for new conversion
+    // Only read temperature every 250ms to ensure fresh data
+    static uint32_t last_temp_read_time = 0;
+    uint32_t current_time = esp_timer_get_time() / 1000;
+
+    if (current_time - last_temp_read_time >= 250) {
+        // Read current temperature
+        double current_temp = get_current_temperature();
+        if (current_temp > 0) {
+            // Update PID controller with current temperature
+            soldering_iron_hal_update_control(iron_handle, current_temp);
+        }
+        last_temp_read_time = current_time;
+    }
+
+    return true;
+}
 
 bool on_execute_manual_executing(void* user_data) {
     fsm_execution_context_t* ctx = fsm_controller_get_execution_context(fsm_handle);
@@ -451,6 +526,43 @@ bool on_execute_calibration(void* user_data) {
     return true;
 }
 
+bool on_execute_manual_heating(void* user_data) {
+    // Manual heating - maintain temperature control (no automatic transition)
+    if (!iron_handle) return false;
+
+    // MAX6675 requires minimum 220ms between readings for new conversion
+    // Only read temperature every 250ms to ensure fresh data
+    static uint32_t last_temp_read_time = 0;
+    uint32_t current_time = esp_timer_get_time() / 1000;
+
+    if (current_time - last_temp_read_time >= 250) {
+        // Read current temperature
+        double current_temp = get_current_temperature();
+        if (current_temp < 0) {
+            ESP_LOGE(TAG, "Temperature sensor error in manual heating: %.2f", current_temp);
+            fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
+            return false;
+        }
+
+        // Update PID controller with current temperature
+        soldering_iron_hal_update_control(iron_handle, current_temp);
+
+        // Optional: Log temperature periodically
+        static uint32_t last_log_time = 0;
+        if (current_time - last_log_time >= 2000) {  // Every 2 seconds
+            double target_temp = soldering_iron_hal_get_target_temperature(iron_handle);
+            double power = soldering_iron_hal_get_power(iron_handle);
+            ESP_LOGI(TAG, "Manual Heating: Current=%.1f°C, Target=%.1f°C, Power=%.1f%%",
+                     current_temp, target_temp, power);
+            last_log_time = current_time;
+        }
+
+        last_temp_read_time = current_time;
+    }
+
+    return true;
+}
+
 bool on_execute_heating(void* user_data) {
     fsm_execution_context_t* ctx = fsm_controller_get_execution_context(fsm_handle);
     if (!ctx) return false;
@@ -469,7 +581,7 @@ bool on_execute_heating(void* user_data) {
     if (current_time - last_temp_read_time >= 250) {
         // Read current temperature
         current_temp = get_current_temperature();
-        ESP_LOGI(TAG, "temp: %.2f", current_temp);
+        // ESP_LOGI(TAG, "temp: %.2f", current_temp);
         if (current_temp < 0) {
             ESP_LOGE(TAG, "Temperature sensor error: %.2f", current_temp);
             fsm_controller_post_event(fsm_handle, FSM_EVENT_HEATING_ERROR);
@@ -578,7 +690,6 @@ bool on_execute_normal_exit(void* user_data) {
                  current_temp, config->safe_temperature, time_cooldown / 1000);
     }
 
-    // Check for timeout (10 minutes)
     if (time_cooldown > config->cooldown_timeout_ms) {
         ESP_LOGW(TAG, "Cooldown timeout (10 min)! Current temp: %.1f°C", current_temp);
         fsm_controller_post_event(fsm_handle, FSM_EVENT_COOLING_ERROR);

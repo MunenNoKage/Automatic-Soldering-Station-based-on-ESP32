@@ -14,7 +14,14 @@
 </head>
 <body>
     <header>
-        <h1>Automatic Soldering Station</h1>
+        <div class="header-content">
+            <h1>Automatic Soldering Station</h1>
+            <nav class="page-navigation">
+                <button class="nav-btn" onclick="window.location.href='index.html'">Home</button>
+                <button class="nav-btn nav-btn-active">Manual Control</button>
+                <button class="nav-btn" onclick="window.location.href='exec.html'">Execution</button>
+            </nav>
+        </div>
     </header>
 
     <main>
@@ -46,6 +53,7 @@
                     <button id="manual-enter-btn" class="btn-manual btn-start">Calibrate</button>
                     <button id="manual-move-btn" class="btn-manual btn-resume" disabled>Move to Position</button>
                     <button id="manual-set-origin-btn" class="btn-manual btn-pause" disabled>Set Origin Here</button>
+                    <button id="manual-exit-btn" class="btn-manual btn-stop" disabled>Exit Manual Control</button>
                 </div>
             </div>
             <div class="solder-controls">
@@ -55,6 +63,25 @@
                 </div>
             </div>
             <div id="manual-status" class="upload-status"></div>
+        </section>
+
+        <section id="heating-section">
+            <h2>Heating Control</h2>
+            <div class="temperature-display">
+                <div class="temp-box">
+                    <span class="temp-label">Current Temperature:</span>
+                    <span id="current-temp" class="temp-value">--°C</span>
+                </div>
+                <div class="temp-box">
+                    <span class="temp-label">Target Temperature:</span>
+                    <span id="target-temp" class="temp-value">450°C</span>
+                </div>
+            </div>
+            <div class="heating-controls">
+                <button id="heating-enable-btn" class="btn-heating btn-heat-enable" disabled>Enable Heating</button>
+                <button id="heating-disable-btn" class="btn-heating btn-heat-disable" disabled>Disable Heating</button>
+            </div>
+            <div id="heating-status" class="upload-status"></div>
         </section>
     </main>
 
