@@ -53,16 +53,17 @@
                     <button id="manual-enter-btn" class="btn-manual btn-start">Calibrate</button>
                     <button id="manual-move-btn" class="btn-manual btn-resume" disabled>Move to Position</button>
                     <button id="manual-set-origin-btn" class="btn-manual btn-pause" disabled>Set Origin Here</button>
-                    <button id="manual-exit-btn" class="btn-manual btn-stop" disabled>Exit Manual Control</button>
                 </div>
             </div>
             <div class="solder-controls">
-                <div class="input-group" style="flex-direction: row; margin-top: 1rem;">
-                    <input type="number" id="solder-amount" step="10" value="0" min="-1000" max="1000" />
+                <div style="display:flex; flex-direction: row; margin-top: 1rem; justify-content: center;">
                     <button id="solder-feed-btn" class="btn-manual btn-solder" disabled>Feed Solder</button>
+                    <input type="number" style="flex: 2; text-align: center; margin: 0 1rem; font-size: 1rem;" class="input-group" id="solder-amount" step="100" value="0" min="0" max="1000" />
+                    <button id="solder-take-btn" class="btn-manual btn-solder" style="background-color: #bba699;" disabled>Take Solder</button>
                 </div>
             </div>
             <div id="manual-status" class="upload-status"></div>
+            <p style="color: gray; font-size: 0.9rem;">The origin should be set to the topleft corner of the fixated board. To do this, first move the soldering iron's tip precisely to the board's corner, and then set the origin. Always calibrate before using manual control.</p>
         </section>
 
         <section id="heating-section">

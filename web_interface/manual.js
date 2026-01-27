@@ -15,6 +15,7 @@ let manualYInput;
 let manualZInput;
 let manualStatus;
 let solderFeedBtn;
+let solderTakeBtn;
 let solderAmountInput;
 let solderStatus;
 let heatingEnableBtn;
@@ -40,7 +41,7 @@ let manualModeActive = false;
 let coordinateLimits = {
     x: { min: 0, max: 250 },
     y: { min: 0, max: 210 },
-    z: { min: 0, max: 180 }
+    z: { min: 0, max: 200 }
 };
 
 /**
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Solder control elements
     solderFeedBtn = document.getElementById('solder-feed-btn');
+    solderTakeBtn = document.getElementById('solder-take-btn');
     solderAmountInput = document.getElementById('solder-amount');
     solderStatus = document.getElementById('manual-status');
 
@@ -98,6 +100,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (solderFeedBtn) {
         solderFeedBtn.addEventListener('click', handleSolderFeed);
+    }
+
+    if (solderTakeBtn) {
+        solderTakeBtn.addEventListener('click', handleSolderTake);
     }
 
     if (heatingEnableBtn) {
@@ -223,6 +229,7 @@ async function handleManualEnter() {
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = false;
             if (manualExitBtn) manualExitBtn.disabled = false;
             if (solderFeedBtn) solderFeedBtn.disabled = false;
+            if (solderTakeBtn) solderTakeBtn.disabled = false;
 
             // Enable heating controls
             if (heatingEnableBtn) heatingEnableBtn.disabled = false;
@@ -357,6 +364,7 @@ async function handleManualExit() {
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = true;
             if (manualExitBtn) manualExitBtn.disabled = true;
             if (solderFeedBtn) solderFeedBtn.disabled = true;
+            if (solderTakeBtn) solderTakeBtn.disabled = true;
 
             // Disable heating controls
             if (heatingEnableBtn) heatingEnableBtn.disabled = true;
@@ -371,14 +379,16 @@ async function handleManualExit() {
     }
 }
 
+
+
 /**
  * Handle solder feed command
  */
 async function handleSolderFeed() {
     const amount = parseInt(solderAmountInput.value);
 
-    if (isNaN(amount) || amount < -1000 || amount > 1000) {
-        solderStatus.textContent = 'Error: Feed amount must be between -1000 and 1000 steps';
+    if (isNaN(amount) || amount < 0 || amount > 1000) {
+        solderStatus.textContent = 'Error: Feed amount must be between 0 and 1000 mm';
         solderStatus.className = 'upload-status error';
         return;
     }
@@ -398,7 +408,46 @@ async function handleSolderFeed() {
         const result = await response.json();
 
         if (result.success) {
-            solderStatus.textContent = `Solder fed: ${amount} steps`;
+            solderStatus.textContent = `Solder fed: ${amount} mm`;
+            solderStatus.className = 'upload-status success';
+            setTimeout(() => {
+                solderStatus.textContent = '';
+            }, 3000);
+        } else {
+            solderStatus.textContent = 'Error: ' + (result.message || 'Failed to feed solder');
+            solderStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        solderStatus.textContent = 'Error: ' + error.message;
+        solderStatus.className = 'upload-status error';
+    }
+}
+
+async function handleSolderTake() {
+    const amount = parseInt(solderAmountInput.value);
+
+    if (isNaN(amount) || amount < 0 || amount > 1000) {
+        solderStatus.textContent = 'Error: Feed amount must be between 0 and 1000 mm';
+        solderStatus.className = 'upload-status error';
+        return;
+    }
+
+    solderStatus.textContent = `Taking ${amount} steps of solder...`;
+    solderStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/solder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: -amount })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            solderStatus.textContent = `Solder fed: ${amount} mm`;
             solderStatus.className = 'upload-status success';
             setTimeout(() => {
                 solderStatus.textContent = '';
