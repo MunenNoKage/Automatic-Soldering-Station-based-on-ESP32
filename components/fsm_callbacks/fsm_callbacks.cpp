@@ -489,9 +489,9 @@ bool on_execute_calibration(void* user_data) {
     if (!ctx) return false;
 
     if (ctx->iteration_count == 0) {
-        ESP_LOGI(TAG, "Calibrating X-axis");
-        motor_x->calibrate();
-        motor_x->setEnable(false);
+        ESP_LOGI(TAG, "Calibrating Z-axis");
+        motor_z->calibrate();
+        motor_z->setEnable(false);
         ctx->iteration_count = 1;
         vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 1) {
@@ -501,9 +501,9 @@ bool on_execute_calibration(void* user_data) {
         ctx->iteration_count = 2;
         vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 2) {
-        ESP_LOGI(TAG, "Calibrating Z-axis");
-        motor_z->calibrate();
-        motor_z->setEnable(false);
+        ESP_LOGI(TAG, "Calibrating X-axis");
+        motor_x->calibrate();
+        motor_x->setEnable(false);
         ctx->iteration_count = 3;
         vTaskDelay(pdMS_TO_TICKS(10));
     } else if (ctx->iteration_count == 3 && !ctx->operation_complete) {

@@ -41,7 +41,7 @@ let manualModeActive = false;
 let coordinateLimits = {
     x: { min: 0, max: 250 },
     y: { min: 0, max: 210 },
-    z: { min: 0, max: 200 }
+    z: { min: 0, max: 210 }
 };
 
 /**

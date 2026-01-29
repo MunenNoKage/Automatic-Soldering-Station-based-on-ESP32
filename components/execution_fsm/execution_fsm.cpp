@@ -504,9 +504,9 @@ static bool execute_gcode_command(execution_sub_fsm_t* fsm, const gcode_command_
             motor_y->setTargetPosition(0);
             motor_z->setTargetPosition(0);
 
+            motor_z->calibrate();
             motor_x->calibrate();
             motor_y->calibrate();
-            motor_z->calibrate();
             break;
         }
 
