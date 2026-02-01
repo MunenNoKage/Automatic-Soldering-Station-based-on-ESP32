@@ -103,6 +103,49 @@ static esp_err_t static_file_handler(httpd_req_t *req) {
 
     ESP_LOGI(TAG, "Request for: %s", uri);
 
+    // Captive portal redirect logic
+    // Check for captive portal detection requests from Android/iOS/Windows
+    size_t req_hdr_host_len = httpd_req_get_hdr_value_len(req, "Host");
+    
+    if (req_hdr_host_len > 0) {
+        char req_hdr_host_val[req_hdr_host_len + 1];
+        esp_err_t res = httpd_req_get_hdr_value_str(req, "Host", req_hdr_host_val, 
+                                                     sizeof(req_hdr_host_val));
+        
+        if (res == ESP_OK) {
+            ESP_LOGI(TAG, "Host header: %s", req_hdr_host_val);
+            
+            // List of known captive portal detection hosts
+            const char* captive_portal_hosts[] = {
+                "connectivitycheck.gstatic.com",     // Android
+                "clients3.google.com",                // Android
+                "captive.apple.com",                  // iOS/macOS
+                "www.apple.com",                      // iOS/macOS
+                "www.msftconnecttest.com",           // Windows
+                "www.msftncsi.com",                  // Windows
+            };
+            
+            bool is_captive_check = false;
+            for (size_t i = 0; i < sizeof(captive_portal_hosts) / sizeof(captive_portal_hosts[0]); i++) {
+                if (strncmp(req_hdr_host_val, captive_portal_hosts[i], 
+                           strlen(captive_portal_hosts[i])) == 0) {
+                    is_captive_check = true;
+                    break;
+                }
+            }
+            
+            if (is_captive_check) {
+                ESP_LOGI(TAG, "Captive portal detection request - redirecting to index");
+                
+                // Send 302 redirect to our index page
+                httpd_resp_set_status(req, "302 Found");
+                httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+                httpd_resp_send(req, "302 Found", HTTPD_RESP_USE_STRLEN);
+                return ESP_OK;
+            }
+        }
+    }
+
     // Get embedded file
     const embedded_file_t* file = get_embedded_file(uri);
 

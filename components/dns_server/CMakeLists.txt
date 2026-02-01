@@ -1,0 +1,8 @@
+# CMakeLists.txt
+# Build configuration for DNS server component
+
+idf_component_register(
+    SRCS "dns_server.c"
+    INCLUDE_DIRS "include"
+    REQUIRES esp_netif lwip
+)

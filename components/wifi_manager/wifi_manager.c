@@ -1,17 +1,20 @@
 /**
  * @file wifi_manager.c
- * @brief Implementation of WiFi Access Point manager
+ * @brief Implementation of WiFi Access Point manager with captive portal
  * 
- * Configures and manages ESP32 as WiFi hotspot.
+ * Configures and manages ESP32 as WiFi hotspot with DNS server for
+ * captive portal functionality on Android, iOS, and Windows devices.
  */
 
 #include "wifi_manager.h"
+#include "dns_server.h"
 #include <string.h>
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_netif.h>
 #include <esp_mac.h>
+#include <lwip/ip4_addr.h>
 
 static const char *TAG = "WIFI_MANAGER";
 
@@ -115,6 +118,33 @@ wifi_manager_handle_t wifi_manager_init(const wifi_manager_config_t* config) {
         return NULL;
     }
     
+    // Configure AP with class A IP address for captive portal compatibility
+    // NOTE: Using standard 192.168.4.1 for maximum compatibility
+    esp_netif_ip_info_t ip_info;
+    IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
+    IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
+    IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+    
+    // Stop DHCP server before changing IP
+    esp_netif_dhcps_stop(handle->netif_ap);
+    
+    // Set the new IP configuration
+    ret = esp_netif_set_ip_info(handle->netif_ap, &ip_info);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set IP info: %s", esp_err_to_name(ret));
+    }
+    
+    // Restart DHCP server with new configuration
+    ret = esp_netif_dhcps_start(handle->netif_ap);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to start DHCP server: %s", esp_err_to_name(ret));
+    }
+    
+    ESP_LOGI(TAG, "AP configured with IP: " IPSTR, IP2STR(&ip_info.ip));
+    
+    // Store IP address in handle
+    snprintf(handle->ip_address, sizeof(handle->ip_address), IPSTR, IP2STR(&ip_info.ip));
+    
     // Initialize WiFi with default config
     wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     ret = esp_wifi_init(&wifi_init_cfg);
@@ -138,7 +168,7 @@ wifi_manager_handle_t wifi_manager_init(const wifi_manager_config_t* config) {
             .ssid = "",
             .ssid_len = 0,
             .channel = config->channel,
-            .authmode = WIFI_AUTH_OPEN,  // Open network - no password required
+            .authmode = WIFI_AUTH_OPEN,
             .ssid_hidden = 0,
             .max_connection = config->max_connections,
             .beacon_interval = 100,
@@ -182,20 +212,9 @@ wifi_manager_handle_t wifi_manager_init(const wifi_manager_config_t* config) {
         return NULL;
     }
     
-    // Get IP address
-    esp_netif_ip_info_t ip_info;
-    ret = esp_netif_get_ip_info(handle->netif_ap, &ip_info);
-    if (ret == ESP_OK) {
-        snprintf(handle->ip_address, sizeof(handle->ip_address), 
-                IPSTR, IP2STR(&ip_info.ip));
-        ESP_LOGI(TAG, "AP IP Address: %s", handle->ip_address);
-        ESP_LOGI(TAG, "AP Gateway: " IPSTR, IP2STR(&ip_info.gw));
-        ESP_LOGI(TAG, "AP Netmask: " IPSTR, IP2STR(&ip_info.netmask));
-    } else {
-        // Default IP for AP mode
-        strcpy(handle->ip_address, "192.168.4.1");
-        ESP_LOGW(TAG, "Failed to get IP info, using default: %s", handle->ip_address);
-    }
+    // Initialize DNS server for captive portal
+    ESP_LOGI(TAG, "Starting DNS server for captive portal...");
+    dns_server_init();
     
     ESP_LOGI(TAG, "WiFi AP initialized successfully");
     ESP_LOGI(TAG, "========================================");
@@ -204,11 +223,11 @@ wifi_manager_handle_t wifi_manager_init(const wifi_manager_config_t* config) {
     ESP_LOGI(TAG, "  IP Address: %s", handle->ip_address);
     ESP_LOGI(TAG, "  Channel: %d", config->channel);
     ESP_LOGI(TAG, "  Max Connections: %d", config->max_connections);
+    ESP_LOGI(TAG, "  Captive Portal: ENABLED");
     ESP_LOGI(TAG, "========================================");
     
     return handle;
 }
-
 /**
  * @brief Deinitialize WiFi manager
  */
@@ -219,6 +238,9 @@ void wifi_manager_deinit(wifi_manager_handle_t handle) {
     }
     
     ESP_LOGI(TAG, "Deinitializing WiFi manager");
+    
+    // Stop DNS server
+    dns_server_deinit();
     
     // Unregister event handler
     esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler);
