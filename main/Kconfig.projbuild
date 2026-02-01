@@ -222,7 +222,7 @@ menu "Automatic Soldering Station Configuration"
 
         config TEMP_SENSOR_MISO_PIN
             int "SPI MISO Pin"
-            default 19
+            default 5
             help
                 GPIO pin for MAX6675 MISO (SO) signal
 
@@ -234,7 +234,7 @@ menu "Automatic Soldering Station Configuration"
 
         config TEMP_SENSOR_CS_PIN
             int "SPI CS Pin"
-            default 5
+            default 19
             help
                 GPIO pin for MAX6675 CS signal
     endmenu
