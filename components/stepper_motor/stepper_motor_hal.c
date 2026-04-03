@@ -273,8 +273,23 @@ bool stepper_motor_hal_endpoint_reached(stepper_motor_handle_t handle) {
         return false;
     }
 
-    // Assuming active LOW endpoint switch (switch closes to GND)
-    bool endpoint_state = !gpio_get_level(handle->config.endpoint_pin);
+    // Debouncing: require endpoint to be active for multiple consecutive readings
+    // This prevents false triggers from electrical noise on floating input-only pins
+    const int DEBOUNCE_SAMPLES = 5;
+    int active_count = 0;
+    
+    for (int i = 0; i < DEBOUNCE_SAMPLES; i++) {
+        // Assuming active LOW endpoint switch (switch closes to GND)
+        if (!gpio_get_level(handle->config.endpoint_pin)) {
+            active_count++;
+        }
+        if (i < DEBOUNCE_SAMPLES - 1) {
+            esp_rom_delay_us(100);  // 100us delay between samples
+        }
+    }
+    
+    // Endpoint is reached only if all samples indicate active state
+    bool endpoint_state = (active_count == DEBOUNCE_SAMPLES);
     if (endpoint_state) {
         ESP_LOGI(TAG, "Endpoint reached!");
     }

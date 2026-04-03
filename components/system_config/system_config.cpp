@@ -233,7 +233,7 @@ bool system_init_heating(void) {
 
     // Initialize temperature sensor (MAX6675)
     temperature_sensor_config_t temp_config = {
-        .host_id = VSPI_HOST,
+        .host_id = SPI3_HOST,
         .pin_miso = static_cast<gpio_num_t>(CONFIG_TEMP_SENSOR_MISO_PIN),
         .pin_mosi = GPIO_NUM_NC,
         .pin_clk = static_cast<gpio_num_t>(CONFIG_TEMP_SENSOR_CLK_PIN),

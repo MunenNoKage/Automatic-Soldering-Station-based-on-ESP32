@@ -15,4 +15,5 @@ idf_component_register(
     PRIV_REQUIRES
         driver
         esp_timer
+        esp_hal_wdt
 )
