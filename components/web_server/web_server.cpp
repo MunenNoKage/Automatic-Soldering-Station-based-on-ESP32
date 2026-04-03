@@ -103,6 +103,49 @@ static esp_err_t static_file_handler(httpd_req_t *req) {
 
     ESP_LOGI(TAG, "Request for: %s", uri);
 
+    // Captive portal redirect logic
+    // Check for captive portal detection requests from Android/iOS/Windows
+    size_t req_hdr_host_len = httpd_req_get_hdr_value_len(req, "Host");
+    
+    if (req_hdr_host_len > 0) {
+        char req_hdr_host_val[req_hdr_host_len + 1];
+        esp_err_t res = httpd_req_get_hdr_value_str(req, "Host", req_hdr_host_val, 
+                                                     sizeof(req_hdr_host_val));
+        
+        if (res == ESP_OK) {
+            ESP_LOGI(TAG, "Host header: %s", req_hdr_host_val);
+            
+            // List of known captive portal detection hosts
+            const char* captive_portal_hosts[] = {
+                "connectivitycheck.gstatic.com",     // Android
+                "clients3.google.com",                // Android
+                "captive.apple.com",                  // iOS/macOS
+                "www.apple.com",                      // iOS/macOS
+                "www.msftconnecttest.com",           // Windows
+                "www.msftncsi.com",                  // Windows
+            };
+            
+            bool is_captive_check = false;
+            for (size_t i = 0; i < sizeof(captive_portal_hosts) / sizeof(captive_portal_hosts[0]); i++) {
+                if (strncmp(req_hdr_host_val, captive_portal_hosts[i], 
+                           strlen(captive_portal_hosts[i])) == 0) {
+                    is_captive_check = true;
+                    break;
+                }
+            }
+            
+            if (is_captive_check) {
+                ESP_LOGI(TAG, "Captive portal detection request - redirecting to index");
+                
+                // Send 302 redirect to our index page
+                httpd_resp_set_status(req, "302 Found");
+                httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+                httpd_resp_send(req, "302 Found", HTTPD_RESP_USE_STRLEN);
+                return ESP_OK;
+            }
+        }
+    }
+
     // Get embedded file
     const embedded_file_t* file = get_embedded_file(uri);
 
@@ -801,15 +844,92 @@ static esp_err_t position_status_handler(httpd_req_t *req) {
         z_mm = motor_z->microsteps_to_mm(motor_z->getPosition());
     }
 
-    // Format JSON response
-    char json[128];
-    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}", x_mm, y_mm, z_mm);
+    // Read current temperature
+    double temperature = 0.0;
+    if (g_temp_sensor_handle) {
+        temperature_sensor_hal_read_temperature(g_temp_sensor_handle, &temperature);
+    }
 
-    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm", x_mm, y_mm, z_mm);
+    // Get current FSM state
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+    int fsm_state = 0;  // Default to INIT
+    if (server_handle && server_handle->fsm_handle) {
+        fsm_state = (int)fsm_controller_get_state(server_handle->fsm_handle);
+    }
+
+    // Format JSON response with temperature and FSM state
+    char json[220];
+    snprintf(json, sizeof(json), "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f,\"temperature\":%.1f,\"fsm_state\":%d}",
+             x_mm, y_mm, z_mm, temperature, fsm_state);
+
+    ESP_LOGD(TAG, "Position: X=%.2f mm, Y=%.2f mm, Z=%.2f mm, Temp=%.1f°C",
+             x_mm, y_mm, z_mm, temperature);
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for enabling heating
+ */
+static esp_err_t heating_enable_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Heating enable request received");
+
+    // Get web server handle (contains FSM handle)
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        // Post FSM event to transition to MANUAL_HEATING state
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_HEATING_START)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_HEATING_START to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_HEATING_START");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Heating enabled\"}"
+        : "{\"success\":false,\"message\":\"Failed to enable heating\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for disabling heating
+ */
+static esp_err_t heating_disable_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Heating disable request received");
+
+    // Get web server handle (contains FSM handle)
+    web_server_handle_t server_handle = (web_server_handle_t)req->user_ctx;
+
+    bool event_posted = false;
+    if (server_handle && server_handle->fsm_handle) {
+        // Post FSM event to transition back to MANUAL_CONTROL state
+        if (fsm_controller_post_event(server_handle->fsm_handle, FSM_EVENT_MANUAL_HEATING_STOP)) {
+            ESP_LOGI(TAG, "Posted FSM_EVENT_MANUAL_HEATING_STOP to FSM controller");
+            event_posted = true;
+        } else {
+            ESP_LOGW(TAG, "Failed to post FSM_EVENT_MANUAL_HEATING_STOP");
+        }
+    }
+
+    const char* response = event_posted
+        ? "{\"success\":true,\"message\":\"Heating disabled\"}"
+        : "{\"success\":false,\"message\":\"Failed to disable heating\"}";
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
 
     return ESP_OK;
 }
@@ -969,6 +1089,23 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &manual_solder_uri);
+
+    // Heating control endpoints
+    httpd_uri_t heating_enable_uri = {
+        .uri = "/api/heating/enable",
+        .method = HTTP_POST,
+        .handler = heating_enable_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &heating_enable_uri);
+
+    httpd_uri_t heating_disable_uri = {
+        .uri = "/api/heating/disable",
+        .method = HTTP_POST,
+        .handler = heating_disable_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &heating_disable_uri);
 
     // Motor control endpoints
     httpd_uri_t motor_control_uri = {

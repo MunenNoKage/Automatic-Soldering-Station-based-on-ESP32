@@ -11,6 +11,8 @@ let pauseBtn;
 let resumeBtn;
 let stopBtn;
 let controlStatus;
+let currentTempDisplay;
+let targetTempDisplay;
 
 // Canvas elements
 let boardCanvas = null;
@@ -33,6 +35,10 @@ document.addEventListener('DOMContentLoaded', function() {
     resumeBtn = document.getElementById('resume-btn');
     stopBtn = document.getElementById('stop-btn');
     controlStatus = document.getElementById('control-status');
+
+    // Temperature display elements
+    currentTempDisplay = document.getElementById('current-temp');
+    targetTempDisplay = document.getElementById('target-temp');
 
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
@@ -61,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load G-code data and initialize visualization
     loadGCodeData();
-    
+
     // Start position polling
     startPositionPolling();
 });
@@ -85,7 +91,7 @@ async function handleStart() {
             const result = await response.json();
             controlStatus.textContent = 'Execution started';
             controlStatus.className = 'upload-status success';
-            
+
             // Update button states
             startBtn.disabled = true;
             pauseBtn.disabled = false;
@@ -120,7 +126,16 @@ async function handlePause() {
 
         if (response.ok) {
             const result = await response.json();
-            controlStatus.textContent = 'Execution paused';
+
+            // Disable heating when paused
+            await fetch('/api/heating/disable', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            controlStatus.textContent = 'Execution paused, heating disabled';
             controlStatus.className = 'upload-status success';
 
             // Update button states
@@ -145,6 +160,14 @@ async function handleResume() {
     controlStatus.className = 'upload-status info';
 
     try {
+        // Enable heating when resuming
+        await fetch('/api/heating/enable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
         const response = await fetch('/api/gcode/resume', {
             method: 'POST',
             headers: {
@@ -154,7 +177,7 @@ async function handleResume() {
 
         if (response.ok) {
             const result = await response.json();
-            controlStatus.textContent = 'Execution resumed';
+            controlStatus.textContent = 'Execution resumed, heating enabled';
             controlStatus.className = 'upload-status success';
 
             // Update button states
@@ -224,18 +247,18 @@ function loadGCodeData() {
     // Parse G-code to extract drill points
     drillPoints = [];
     const lines = gcode.split('\n');
-    
+
     for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.startsWith('G0') || trimmed.startsWith('G1')) {
             let x = null, y = null;
-            
+
             const xMatch = trimmed.match(/X([-]?\d+\.?\d*)/);
             const yMatch = trimmed.match(/Y([-]?\d+\.?\d*)/);
-            
+
             if (xMatch) x = parseFloat(xMatch[1]);
             if (yMatch) y = parseFloat(yMatch[1]);
-            
+
             if (x !== null && y !== null) {
                 drillPoints.push({ x, y });
             }
@@ -243,7 +266,7 @@ function loadGCodeData() {
     }
 
     console.log(`Loaded ${drillPoints.length} drill points from G-code`);
-    
+
     if (drillPoints.length > 0 && boardCanvas) {
         drawBoard();
     }
@@ -261,13 +284,18 @@ function startPositionPolling() {
         try {
             const response = await fetch('/api/status/position');
             if (response.ok) {
-                const position = await response.json();
-                currentPosition = position;
-                
+                const data = await response.json();
+                currentPosition = { x: data.x || 0, y: data.y || 0, z: data.z || 0 };
+
                 if (currentPositionDisplay) {
-                    currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
+                    currentPositionDisplay.textContent = `X: ${currentPosition.x.toFixed(2)}mm, Y: ${currentPosition.y.toFixed(2)}mm, Z: ${currentPosition.z.toFixed(2)}mm`;
                 }
-                
+
+                // Update temperature display if available
+                if (data.temperature !== undefined && currentTempDisplay) {
+                    currentTempDisplay.textContent = `${data.temperature.toFixed(1)}°C`;
+                }
+
                 if (boardCanvas) {
                     updateVisualization();
                 }
@@ -275,7 +303,7 @@ function startPositionPolling() {
         } catch (error) {
             console.error('Error fetching position:', error);
         }
-    }, 500);
+    }, 1000);
 }
 
 /**
@@ -296,12 +324,12 @@ function drawBoard() {
 
     // Calculate visualization parameters using board_canvas module
     const params = calculateBoardCanvasParams(boardCanvas, drillPoints, 0);
-    
+
     // Store visualization parameters globally
     window.execVisualizationParams = params;
 
     if (boardDimensionsDisplay) {
-        boardDimensionsDisplay.textContent = `${(params.maxX - params.minX).toFixed(1)}mm × ${(params.maxY - params.minY).toFixed(1)}mm`;
+        boardDimensionsDisplay.textContent = `Working space: ${(params.maxX - params.minX).toFixed(1)} × ${(params.maxY - params.minY).toFixed(1)} mm`;
     }
 
     updateVisualization();

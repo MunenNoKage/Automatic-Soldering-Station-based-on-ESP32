@@ -2,7 +2,7 @@
 <!--
   @file index.html
   @brief Main web interface for automatic soldering station
-  
+
   Provides UI for G-Code upload, visualization, manual control,
   and real-time status monitoring of soldering operations.
 -->
@@ -15,7 +15,14 @@
 </head>
 <body>
     <header>
-        <h1>Automatic Soldering Station</h1>
+        <div class="header-content">
+            <h1>Automatic Soldering Station</h1>
+            <nav class="page-navigation">
+                <button class="nav-btn nav-btn-active">Home</button>
+                <button class="nav-btn" onclick="window.location.href='manual.html'">Manual Control</button>
+                <button class="nav-btn" onclick="window.location.href='exec.html'">Execution</button>
+            </nav>
+        </div>
     </header>
 
     <main>
@@ -35,6 +42,7 @@
             <div class="canvas-wrapper">
                 <canvas id="board-canvas" width="800" height="600"></canvas>
             </div>
+            <p style="color: gray; font-size: 0.9rem;">Click on any point to exclude it from the soldering process, if needed.</p>
             <div class="visualization-info">
                 <span id="drill-count">0 holes</span>
                 <span id="board-dimensions">Board: 0x0 mm</span>

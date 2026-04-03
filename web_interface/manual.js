@@ -15,8 +15,14 @@ let manualYInput;
 let manualZInput;
 let manualStatus;
 let solderFeedBtn;
+let solderTakeBtn;
 let solderAmountInput;
 let solderStatus;
+let heatingEnableBtn;
+let heatingDisableBtn;
+let heatingStatus;
+let currentTempDisplay;
+let targetTempDisplay;
 
 // Canvas elements
 let boardCanvas = null;
@@ -28,12 +34,14 @@ let boardDimensionsDisplay = null;
 let currentPosition = { x: 0, y: 0, z: 0 };
 let targetPosition = null;  // null until a move command is issued
 let positionUpdateInterval = null;
+let heatingEnabled = false;
+let manualModeActive = false;
 
 // Coordinate limits (from hardware configuration)
 let coordinateLimits = {
     x: { min: 0, max: 250 },
     y: { min: 0, max: 210 },
-    z: { min: 0, max: 180 }
+    z: { min: 0, max: 210 }
 };
 
 /**
@@ -52,8 +60,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Solder control elements
     solderFeedBtn = document.getElementById('solder-feed-btn');
+    solderTakeBtn = document.getElementById('solder-take-btn');
     solderAmountInput = document.getElementById('solder-amount');
     solderStatus = document.getElementById('manual-status');
+
+    // Heating control elements
+    heatingEnableBtn = document.getElementById('heating-enable-btn');
+    heatingDisableBtn = document.getElementById('heating-disable-btn');
+    heatingStatus = document.getElementById('heating-status');
+    currentTempDisplay = document.getElementById('current-temp');
+    targetTempDisplay = document.getElementById('target-temp');
 
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
@@ -84,6 +100,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (solderFeedBtn) {
         solderFeedBtn.addEventListener('click', handleSolderFeed);
+    }
+
+    if (solderTakeBtn) {
+        solderTakeBtn.addEventListener('click', handleSolderTake);
+    }
+
+    if (heatingEnableBtn) {
+        heatingEnableBtn.addEventListener('click', handleEnableHeating);
+    }
+
+    if (heatingDisableBtn) {
+        heatingDisableBtn.addEventListener('click', handleDisableHeating);
     }
 
     // Set input field min/max attributes based on hardcoded limits
@@ -140,11 +168,11 @@ function handleCanvasClick(event) {
     if (!boardCanvas) return;
 
     const rect = boardCanvas.getBoundingClientRect();
-    
+
     // Get click position relative to canvas element
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
-    
+
     // Scale to canvas internal coordinates (canvas might be scaled via CSS)
     const scaleX = boardCanvas.width / rect.width;
     const scaleY = boardCanvas.height / rect.height;
@@ -163,10 +191,10 @@ function handleCanvasClick(event) {
     if (manualYInput) manualYInput.value = y.toFixed(1);
 
     // Update target position for visualization
-    targetPosition = { 
-        x: x, 
-        y: y, 
-        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z 
+    targetPosition = {
+        x: x,
+        y: y,
+        z: manualZInput ? parseFloat(manualZInput.value) : currentPosition.z
     };
 
     // Redraw visualization to show target
@@ -193,6 +221,7 @@ async function handleManualEnter() {
         if (result.success) {
             manualStatus.textContent = 'Manual control mode activated';
             manualStatus.className = 'upload-status success';
+            manualModeActive = true;
 
             // Enable move, set origin, and exit buttons
             if (manualEnterBtn) manualEnterBtn.disabled = true;
@@ -200,6 +229,11 @@ async function handleManualEnter() {
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = false;
             if (manualExitBtn) manualExitBtn.disabled = false;
             if (solderFeedBtn) solderFeedBtn.disabled = false;
+            if (solderTakeBtn) solderTakeBtn.disabled = false;
+
+            // Enable heating controls
+            if (heatingEnableBtn) heatingEnableBtn.disabled = false;
+            if (heatingDisableBtn) heatingDisableBtn.disabled = true;
 
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to enter manual mode');
@@ -322,12 +356,19 @@ async function handleManualExit() {
         if (result.success) {
             manualStatus.textContent = 'Exited manual control mode';
             manualStatus.className = 'upload-status success';
+            manualModeActive = false;
 
             // Reset buttons
             if (manualEnterBtn) manualEnterBtn.disabled = false;
             if (manualMoveBtn) manualMoveBtn.disabled = true;
             if (manualSetOriginBtn) manualSetOriginBtn.disabled = true;
             if (manualExitBtn) manualExitBtn.disabled = true;
+            if (solderFeedBtn) solderFeedBtn.disabled = true;
+            if (solderTakeBtn) solderTakeBtn.disabled = true;
+
+            // Disable heating controls
+            if (heatingEnableBtn) heatingEnableBtn.disabled = true;
+            if (heatingDisableBtn) heatingDisableBtn.disabled = true;
         } else {
             manualStatus.textContent = 'Error: ' + (result.message || 'Failed to exit manual mode');
             manualStatus.className = 'upload-status error';
@@ -338,14 +379,16 @@ async function handleManualExit() {
     }
 }
 
+
+
 /**
  * Handle solder feed command
  */
 async function handleSolderFeed() {
     const amount = parseInt(solderAmountInput.value);
 
-    if (isNaN(amount) || amount < -1000 || amount > 1000) {
-        solderStatus.textContent = 'Error: Feed amount must be between -1000 and 1000 steps';
+    if (isNaN(amount) || amount < 0 || amount > 1000) {
+        solderStatus.textContent = 'Error: Feed amount must be between 0 and 1000 mm';
         solderStatus.className = 'upload-status error';
         return;
     }
@@ -365,7 +408,46 @@ async function handleSolderFeed() {
         const result = await response.json();
 
         if (result.success) {
-            solderStatus.textContent = `Solder fed: ${amount} steps`;
+            solderStatus.textContent = `Solder fed: ${amount} mm`;
+            solderStatus.className = 'upload-status success';
+            setTimeout(() => {
+                solderStatus.textContent = '';
+            }, 3000);
+        } else {
+            solderStatus.textContent = 'Error: ' + (result.message || 'Failed to feed solder');
+            solderStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        solderStatus.textContent = 'Error: ' + error.message;
+        solderStatus.className = 'upload-status error';
+    }
+}
+
+async function handleSolderTake() {
+    const amount = parseInt(solderAmountInput.value);
+
+    if (isNaN(amount) || amount < 0 || amount > 1000) {
+        solderStatus.textContent = 'Error: Feed amount must be between 0 and 1000 mm';
+        solderStatus.className = 'upload-status error';
+        return;
+    }
+
+    solderStatus.textContent = `Taking ${amount} steps of solder...`;
+    solderStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/solder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: -amount })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            solderStatus.textContent = `Solder fed: ${amount} mm`;
             solderStatus.className = 'upload-status success';
             setTimeout(() => {
                 solderStatus.textContent = '';
@@ -392,19 +474,24 @@ function startPositionPolling() {
         try {
             const response = await fetch('/api/status/position');
             if (response.ok) {
-                const position = await response.json();
-                currentPosition = position;
+                const data = await response.json();
+                currentPosition = { x: data.x || 0, y: data.y || 0, z: data.z || 0 };
 
                 if (currentPositionDisplay) {
-                    currentPositionDisplay.textContent = `X: ${position.x.toFixed(2)}mm, Y: ${position.y.toFixed(2)}mm, Z: ${position.z.toFixed(2)}mm`;
+                    currentPositionDisplay.textContent = `X: ${currentPosition.x.toFixed(2)}mm, Y: ${currentPosition.y.toFixed(2)}mm, Z: ${currentPosition.z.toFixed(2)}mm`;
+                }
+
+                // Update temperature display if available
+                if (data.temperature !== undefined && currentTempDisplay) {
+                    currentTempDisplay.textContent = `${data.temperature.toFixed(1)}°C`;
                 }
 
                 // Check if we've reached the target position
                 if (targetPosition !== null) {
-                    const dx = Math.abs(position.x - targetPosition.x);
-                    const dy = Math.abs(position.y - targetPosition.y);
-                    const dz = Math.abs(position.z - targetPosition.z);
-                    
+                    const dx = Math.abs(currentPosition.x - targetPosition.x);
+                    const dy = Math.abs(currentPosition.y - targetPosition.y);
+                    const dz = Math.abs(currentPosition.z - targetPosition.z);
+
                     // If within 0.5mm of target on all axes, clear target
                     if (dx < 0.5 && dy < 0.5 && dz < 0.5) {
                         targetPosition = null;
@@ -418,7 +505,7 @@ function startPositionPolling() {
         } catch (error) {
             console.error('Error fetching position:', error);
         }
-    }, 500);
+    }, 1000);
 }
 
 /**
@@ -455,6 +542,108 @@ function updateVisualization() {
     // Use machine_canvas module to draw everything
     // Pass currentPosition as target if no target is set (distance will be 0, no path drawn)
     drawMachineCanvas(boardCtx, coordinateLimits, currentPosition, targetPosition || currentPosition);
+}
+
+/**
+ * Handle enable heating button click
+ */
+async function handleEnableHeating() {
+    if (!manualModeActive) {
+        heatingStatus.textContent = 'Error: Must be in manual control mode';
+        heatingStatus.className = 'upload-status error';
+        return;
+    }
+
+    // Disable button immediately to prevent double clicks
+    if (heatingEnableBtn) heatingEnableBtn.disabled = true;
+
+    heatingStatus.textContent = 'Enabling heating...';
+    heatingStatus.className = 'upload-status info';
+
+    try {
+        const response = await fetch('/api/heating/enable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            heatingStatus.textContent = 'Heating enabled';
+            heatingStatus.className = 'upload-status success';
+
+            // Update button states
+            heatingEnabled = true;
+            if (heatingDisableBtn) heatingDisableBtn.disabled = false;
+
+            setTimeout(() => {
+                heatingStatus.textContent = '';
+            }, 3000);
+        } else {
+            const error = await response.json();
+            heatingStatus.textContent = `Error: ${error.message || 'Failed to enable heating'}`;
+            heatingStatus.className = 'upload-status error';
+            // Re-enable button on error
+            if (heatingEnableBtn) heatingEnableBtn.disabled = false;
+        }
+    } catch (error) {
+        heatingStatus.textContent = `Error: ${error.message}`;
+        heatingStatus.className = 'upload-status error';
+        // Re-enable button on error
+        if (heatingEnableBtn) heatingEnableBtn.disabled = false;
+    }
+}
+
+/**
+ * Handle disable heating button click
+ */
+async function handleDisableHeating() {
+    if (!manualModeActive) {
+        heatingStatus.textContent = 'Error: Must be in manual control mode';
+        heatingStatus.className = 'upload-status error';
+        return;
+    }
+
+    // Disable button immediately to prevent double clicks
+    if (heatingDisableBtn) heatingDisableBtn.disabled = true;
+
+    heatingStatus.textContent = 'Disabling heating...';
+    heatingStatus.className = 'upload-status info';
+
+    try {
+        const response = await fetch('/api/heating/disable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            heatingStatus.textContent = 'Heating disabled';
+            heatingStatus.className = 'upload-status success';
+
+            // Update button states
+            heatingEnabled = false;
+            if (heatingEnableBtn) heatingEnableBtn.disabled = false;
+
+            setTimeout(() => {
+                heatingStatus.textContent = '';
+            }, 3000);
+        } else {
+            const error = await response.json();
+            heatingStatus.textContent = `Error: ${error.message || 'Failed to disable heating'}`;
+            heatingStatus.className = 'upload-status error';
+            // Re-enable button on error
+            if (heatingDisableBtn) heatingDisableBtn.disabled = false;
+        }
+    } catch (error) {
+        heatingStatus.textContent = `Error: ${error.message}`;
+        heatingStatus.className = 'upload-status error';
+        // Re-enable button on error
+        if (heatingDisableBtn) heatingDisableBtn.disabled = false;
+    }
 }
 
 // Cleanup on page unload

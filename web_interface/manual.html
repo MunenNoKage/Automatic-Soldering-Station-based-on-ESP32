@@ -14,7 +14,14 @@
 </head>
 <body>
     <header>
-        <h1>Automatic Soldering Station</h1>
+        <div class="header-content">
+            <h1>Automatic Soldering Station</h1>
+            <nav class="page-navigation">
+                <button class="nav-btn" onclick="window.location.href='index.html'">Home</button>
+                <button class="nav-btn nav-btn-active">Manual Control</button>
+                <button class="nav-btn" onclick="window.location.href='exec.html'">Execution</button>
+            </nav>
+        </div>
     </header>
 
     <main>
@@ -49,12 +56,33 @@
                 </div>
             </div>
             <div class="solder-controls">
-                <div class="input-group" style="flex-direction: row; margin-top: 1rem;">
-                    <input type="number" id="solder-amount" step="10" value="0" min="-1000" max="1000" />
+                <div style="display:flex; flex-direction: row; margin-top: 1rem; justify-content: center;">
                     <button id="solder-feed-btn" class="btn-manual btn-solder" disabled>Feed Solder</button>
+                    <input type="number" style="flex: 2; text-align: center; margin: 0 1rem; font-size: 1rem;" class="input-group" id="solder-amount" step="100" value="0" min="0" max="1000" />
+                    <button id="solder-take-btn" class="btn-manual btn-solder" style="background-color: #bba699;" disabled>Take Solder</button>
                 </div>
             </div>
             <div id="manual-status" class="upload-status"></div>
+            <p style="color: gray; font-size: 0.9rem;">The origin should be set to the topleft corner of the fixated board. To do this, first move the soldering iron's tip precisely to the board's corner, and then set the origin. Always calibrate before using manual control.</p>
+        </section>
+
+        <section id="heating-section">
+            <h2>Heating Control</h2>
+            <div class="temperature-display">
+                <div class="temp-box">
+                    <span class="temp-label">Current Temperature:</span>
+                    <span id="current-temp" class="temp-value">--°C</span>
+                </div>
+                <div class="temp-box">
+                    <span class="temp-label">Target Temperature:</span>
+                    <span id="target-temp" class="temp-value">450°C</span>
+                </div>
+            </div>
+            <div class="heating-controls">
+                <button id="heating-enable-btn" class="btn-heating btn-heat-enable" disabled>Enable Heating</button>
+                <button id="heating-disable-btn" class="btn-heating btn-heat-disable" disabled>Disable Heating</button>
+            </div>
+            <div id="heating-status" class="upload-status"></div>
         </section>
     </main>
 

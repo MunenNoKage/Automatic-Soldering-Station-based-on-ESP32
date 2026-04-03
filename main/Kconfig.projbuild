@@ -9,7 +9,7 @@ menu "Automatic Soldering Station Configuration"
     menu "WiFi Configuration"
         config WIFI_SSID
             string "WiFi SSID"
-            default "Паяйко"
+            default "Payayko"
             help
                 SSID for the WiFi Access Point
 
@@ -34,16 +34,16 @@ menu "Automatic Soldering Station Configuration"
             default 250
             help
                 Maximum travel distance for X-axis in millimeters
-        
+
         config MOTOR_Y_MAX_POSITION
             int "Y-Axis Maximum Position (mm)"
             default 210
             help
                 Maximum travel distance for Y-axis in millimeters
-        
+
         config MOTOR_Z_MAX_POSITION
             int "Z-Axis Maximum Position (mm)"
-            default 180
+            default 210
             help
                 Maximum travel distance for Z-axis in millimeters
     endmenu
@@ -148,7 +148,7 @@ menu "Automatic Soldering Station Configuration"
             help
                 Number of millimeters the Z-axis moves per microstep (in x1000)
                 (10 = 0.01mm per microstep for 8mm/rev with 1/4 microstepping)
-                
+
         config MOTOR_Z_MICROSTEPS_IN_MM
             int "Microsteps per Millimeter"
             default 100
@@ -208,7 +208,7 @@ menu "Automatic Soldering Station Configuration"
 
         config SOLDERING_IRON_DEFAULT_TEMP
             int "Default Temperature (°C)"
-            default 350
+            default 450
             help
                 Default temperature setting for soldering iron
     endmenu
@@ -222,7 +222,7 @@ menu "Automatic Soldering Station Configuration"
 
         config TEMP_SENSOR_MISO_PIN
             int "SPI MISO Pin"
-            default 19
+            default 5
             help
                 GPIO pin for MAX6675 MISO (SO) signal
 
@@ -234,7 +234,7 @@ menu "Automatic Soldering Station Configuration"
 
         config TEMP_SENSOR_CS_PIN
             int "SPI CS Pin"
-            default 5
+            default 19
             help
                 GPIO pin for MAX6675 CS signal
     endmenu
@@ -252,29 +252,5 @@ menu "Automatic Soldering Station Configuration"
             help
                 Maximum number of URI handlers for web server
     endmenu
-
-    menu "Task Watchdog Configuration"
-        config ESP_TASK_WDT_TIMEOUT_S
-            int "Task Watchdog Timeout (seconds)"
-            default 30
-            range 5 60
-            help
-                Watchdog timeout in seconds for motor control tasks.
-                Set to 30 seconds to allow long motor movements without interruption.
-
-        config ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-            bool "Watch CPU0 Idle Task"
-            default y
-            help
-                Watch IDLE task on CPU0
-                
-        config ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-            bool "Watch CPU1 Idle Task"  
-            default y
-            help
-                Watch IDLE task on CPU1
-    endmenu
-
-
 
 endmenu

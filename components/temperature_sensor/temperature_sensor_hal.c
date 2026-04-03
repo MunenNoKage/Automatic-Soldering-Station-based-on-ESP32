@@ -6,6 +6,8 @@
 #include "temperature_sensor_hal.h"
 #include <stdlib.h> // For malloc/free
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 // Tag for logging
 static const char *TAG = "MAX6675_HAL";
@@ -158,6 +160,9 @@ esp_err_t temperature_sensor_hal_read_temperature(temperature_sensor_handle_t ha
     {
         return ESP_ERR_INVALID_ARG;
     }
+
+    // Delay 50ms to allow sensor time to complete temperature reading
+    vTaskDelay(pdMS_TO_TICKS(50));
 
     uint16_t raw_data = 0;
 
