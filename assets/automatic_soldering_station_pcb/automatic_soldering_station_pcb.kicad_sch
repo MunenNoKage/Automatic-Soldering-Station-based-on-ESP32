@@ -9056,7 +9056,7 @@
 				(hide yes)
 			)
 		)
-		(property "Value" "R 1KΩ"
+		(property "Value" "R 10KΩ"
 			(at 50.292 133.604 0)
 			(effects
 				(font
