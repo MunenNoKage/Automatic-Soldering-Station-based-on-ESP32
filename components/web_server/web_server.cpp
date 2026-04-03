@@ -9,8 +9,10 @@
 #include <esp_http_server.h>
 #include <esp_log.h>
 #include <string.h>
+#include <cmath>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_task_wdt.h"
 #include "gcode_parser.h"
 #include "execution_fsm.h"
 #include "StepperMotor.hpp"
@@ -935,6 +937,363 @@ static esp_err_t heating_disable_handler(httpd_req_t *req) {
 }
 
 /**
+ * @brief Handler for box vertex test sequence
+ */
+static esp_err_t manual_test_box_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Box vertex test sequence request received");
+
+    // Execute test sequence: visit all 8 vertices of the working volume
+    // Add 5mm safety margin from physical limits
+    const int32_t margin_mm = 5;
+    int32_t min_x = margin_mm;
+    int32_t max_x = CONFIG_MOTOR_X_MAX_POSITION - margin_mm;
+    int32_t min_y = margin_mm;
+    int32_t max_y = CONFIG_MOTOR_Y_MAX_POSITION - margin_mm;
+    int32_t min_z = margin_mm;
+    int32_t max_z = CONFIG_MOTOR_Z_MAX_POSITION - margin_mm;
+
+    // Define 8 vertices with safety margins
+    struct { int32_t x, y, z; } vertices[] = {
+        {min_x, min_y, min_z},
+        {max_x, min_y, min_z},
+        {max_x, max_y, min_z},
+        {min_x, max_y, min_z},
+        {min_x, min_y, max_z},
+        {max_x, min_y, max_z},
+        {max_x, max_y, max_z},
+        {min_x, max_y, max_z}
+    };
+
+    ESP_LOGI(TAG, "Moving through 8 box vertices with %dmm safety margin...", margin_mm);
+
+    // Subscribe current task to watchdog so we can reset it during long operations
+    esp_task_wdt_add(NULL);  // NULL = current task
+
+    // Enable all motors
+    if (motor_x && motor_x->isInitialized()) {
+        motor_x->setEnable(true);
+    }
+    if (motor_y && motor_y->isInitialized()) {
+        motor_y->setEnable(true);
+    }
+    if (motor_z && motor_z->isInitialized()) {
+        motor_z->setEnable(true);
+    }
+    if (motor_s && motor_s->isInitialized()) {
+        motor_s->setEnable(true);
+    }
+
+    // Visit each vertex - move axes SEQUENTIALLY with full-step moves
+    for (int i = 0; i < 8; i++) {
+        ESP_LOGI(TAG, "Moving to vertex %d: (%d, %d, %d)", 
+                 i + 1, vertices[i].x, vertices[i].y, vertices[i].z);
+
+        int32_t target_z_steps = motor_z->mm_to_microsteps(vertices[i].z);
+        int32_t target_x_steps = motor_x->mm_to_microsteps(vertices[i].x);
+        int32_t target_y_steps = motor_y->mm_to_microsteps(vertices[i].y);
+        
+        // Move Z axis first (if going up) or last (if going down)
+        bool z_going_down = (target_z_steps > motor_z->getPosition());
+
+        // If Z is going UP, move Z first
+        if (!z_going_down && motor_z && motor_z->isInitialized()) {
+            motor_z->setTargetPosition(target_z_steps);
+            while (motor_z->getPosition() != motor_z->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - motor_z->getTargetPosition()));
+                if (steps > 0) {
+                    motor_z->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // Move X axis
+        if (motor_x && motor_x->isInitialized()) {
+            motor_x->setTargetPosition(target_x_steps);
+            while (motor_x->getPosition() != motor_x->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_x->getPosition() - motor_x->getTargetPosition()));
+                if (steps > 0) {
+                    motor_x->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // Move Y axis
+        if (motor_y && motor_y->isInitialized()) {
+            motor_y->setTargetPosition(target_y_steps);
+            while (motor_y->getPosition() != motor_y->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_y->getPosition() - motor_y->getTargetPosition()));
+                if (steps > 0) {
+                    motor_y->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // If Z is going DOWN, move Z last
+        if (z_going_down && motor_z && motor_z->isInitialized()) {
+            motor_z->setTargetPosition(target_z_steps);
+            while (motor_z->getPosition() != motor_z->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - motor_z->getTargetPosition()));
+                if (steps > 0) {
+                    motor_z->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // Pause briefly at each vertex
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    ESP_LOGI(TAG, "Box vertex sequence complete. Testing solder motor...");
+
+    // At the end, test solder motor: feed 1000 then retract 1000
+    if (motor_s && motor_s->isInitialized()) {
+        ESP_LOGI(TAG, "Feeding solder: 1000 steps");
+        int32_t solder_target = motor_s->getPosition() - 1000;
+        motor_s->setTargetPosition(solder_target);
+        int32_t actual_target = motor_s->getTargetPosition();  // Get clamped target
+        while (motor_s->getPosition() != actual_target) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_s->getPosition() - actual_target));
+            if (steps > 0) {
+                motor_s->stepMultipleToTarget(steps);
+            }
+            vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(500));
+
+        ESP_LOGI(TAG, "Retracting solder: 1000 steps");
+        solder_target = motor_s->getPosition() + 1000;
+        motor_s->setTargetPosition(solder_target);
+        actual_target = motor_s->getTargetPosition();  // Get clamped target
+        while (motor_s->getPosition() != actual_target) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_s->getPosition() - actual_target));
+            if (steps > 0) {
+                motor_s->stepMultipleToTarget(steps);
+            }
+            vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+        }
+    }
+
+    ESP_LOGI(TAG, "Box test sequence completed");
+
+    // Disable all motors
+    if (motor_x && motor_x->isInitialized()) {
+        motor_x->setEnable(false);
+    }
+    if (motor_y && motor_y->isInitialized()) {
+        motor_y->setEnable(false);
+    }
+    if (motor_z && motor_z->isInitialized()) {
+        motor_z->setEnable(false);
+    }
+    if (motor_s && motor_s->isInitialized()) {
+        motor_s->setEnable(false);
+    }
+
+    // Unsubscribe from watchdog
+    esp_task_wdt_delete(NULL);  // NULL = current task
+
+    const char* response = "{\"success\":true,\"message\":\"Box test sequence completed\"}";
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Handler for solder pattern test sequence
+ */
+static esp_err_t manual_test_pattern_handler(httpd_req_t *req) {
+    ESP_LOGI(TAG, "Solder pattern test sequence request received");
+
+    // Add 5mm safety margin from physical limits
+    const int32_t margin_mm = 5;
+    int32_t min_x = margin_mm;
+    int32_t max_x = CONFIG_MOTOR_X_MAX_POSITION - margin_mm;
+    int32_t min_y = margin_mm;
+    int32_t max_y = CONFIG_MOTOR_Y_MAX_POSITION - margin_mm;
+    
+    // Calculate center and working area
+    int32_t center_x = (max_x + min_x) / 2;
+    int32_t center_y = (max_y + min_y) / 2;
+    int32_t offset = 40;  // Offset from center for pattern points
+    
+    // Create a nice pattern of 10 soldering points with varying distances
+    // Pattern: arranged in a circular/spiral pattern for visual appeal
+    struct { int32_t x, y; } pattern[] = {
+        {center_x, center_y},              // Center
+        {center_x + offset, center_y},     // Right
+        {center_x + offset, center_y + offset},   // Bottom-right
+        {center_x, center_y + offset},     // Bottom
+        {center_x - offset, center_y + offset},   // Bottom-left
+        {center_x - offset, center_y},     // Left
+        {center_x - offset, center_y - offset},   // Top-left
+        {center_x, center_y - offset},     // Top
+        {center_x + offset, center_y - offset},   // Top-right
+        {center_x, center_y}               // Back to center
+    };
+
+    const int solder_amount = 500;  // Amount to feed/retract at each point
+    const int z_down = 20;          // Z position for soldering (mm)
+    const int z_up = 80;            // Z position for travel (mm)
+
+    ESP_LOGI(TAG, "Executing 10-point solder pattern test...");
+
+    // Subscribe current task to watchdog so we can reset it during long operations
+    esp_task_wdt_add(NULL);  // NULL = current task
+
+    // Enable all motors
+    if (motor_x && motor_x->isInitialized()) {
+        motor_x->setEnable(true);
+    }
+    if (motor_y && motor_y->isInitialized()) {
+        motor_y->setEnable(true);
+    }
+    if (motor_z && motor_z->isInitialized()) {
+        motor_z->setEnable(true);
+    }
+    if (motor_s && motor_s->isInitialized()) {
+        motor_s->setEnable(true);
+    }
+
+    for (int i = 0; i < 10; i++) {
+        ESP_LOGI(TAG, "Point %d: (%d, %d)", i + 1, pattern[i].x, pattern[i].y);
+
+        // Calculate target positions
+        int32_t target_z_up = motor_z->mm_to_microsteps(z_up);
+        int32_t target_z_down = motor_z->mm_to_microsteps(z_down);
+        int32_t target_x = motor_x->mm_to_microsteps(pattern[i].x);
+        int32_t target_y = motor_y->mm_to_microsteps(pattern[i].y);
+
+        // Move Z up to safe height (using chunks for watchdog)
+        if (motor_z && motor_z->isInitialized()) {
+            motor_z->setTargetPosition(target_z_up);
+            while (motor_z->getPosition() != motor_z->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - motor_z->getTargetPosition()));
+                if (steps > 0) {
+                    motor_z->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // Move X to target position
+        if (motor_x && motor_x->isInitialized()) {
+            motor_x->setTargetPosition(target_x);
+            while (motor_x->getPosition() != motor_x->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_x->getPosition() - motor_x->getTargetPosition()));
+                if (steps > 0) {
+                    motor_x->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+        
+        // Move Y to target position
+        if (motor_y && motor_y->isInitialized()) {
+            motor_y->setTargetPosition(target_y);
+            while (motor_y->getPosition() != motor_y->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_y->getPosition() - motor_y->getTargetPosition()));
+                if (steps > 0) {
+                    motor_y->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        // Lower Z to soldering height
+        if (motor_z && motor_z->isInitialized()) {
+            motor_z->setTargetPosition(target_z_down);
+            while (motor_z->getPosition() != motor_z->getTargetPosition()) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - motor_z->getTargetPosition()));
+                if (steps > 0) {
+                    motor_z->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(300));  // Pause for "soldering"
+
+        // Feed solder
+        if (motor_s && motor_s->isInitialized()) {
+            ESP_LOGI(TAG, "Feeding solder at point %d", i + 1);
+            int32_t solder_feed_target = motor_s->getPosition() - solder_amount;
+            motor_s->setTargetPosition(solder_feed_target);
+            int32_t actual_target = motor_s->getTargetPosition();  // Get clamped target
+            while (motor_s->getPosition() != actual_target) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_s->getPosition() - actual_target));
+                if (steps > 0) {
+                    motor_s->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(200));
+
+            // Retract solder
+            ESP_LOGI(TAG, "Retracting solder at point %d", i + 1);
+            int32_t solder_retract_target = motor_s->getPosition() + solder_amount;
+            motor_s->setTargetPosition(solder_retract_target);
+            actual_target = motor_s->getTargetPosition();  // Get clamped target
+            while (motor_s->getPosition() != actual_target) {
+                uint32_t steps = static_cast<uint32_t>(std::abs(motor_s->getPosition() - actual_target));
+                if (steps > 0) {
+                    motor_s->stepMultipleToTarget(steps);
+                }
+                vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    // Return to safe Z height
+    if (motor_z && motor_z->isInitialized()) {
+        int32_t target_z_up = motor_z->mm_to_microsteps(z_up);
+        motor_z->setTargetPosition(target_z_up);
+        while (motor_z->getPosition() != motor_z->getTargetPosition()) {
+            uint32_t steps = static_cast<uint32_t>(std::abs(motor_z->getPosition() - motor_z->getTargetPosition()));
+            if (steps > 0) {
+                motor_z->stepMultipleToTarget(steps);
+            }
+            vTaskDelay(pdMS_TO_TICKS(1));  // Yield to let IDLE task run
+        }
+    }
+
+    ESP_LOGI(TAG, "Solder pattern test sequence completed");
+
+    // Disable all motors
+    if (motor_x && motor_x->isInitialized()) {
+        motor_x->setEnable(false);
+    }
+    if (motor_y && motor_y->isInitialized()) {
+        motor_y->setEnable(false);
+    }
+    if (motor_z && motor_z->isInitialized()) {
+        motor_z->setEnable(false);
+    }
+    if (motor_s && motor_s->isInitialized()) {
+        motor_s->setEnable(false);
+    }
+
+    // Unsubscribe from watchdog
+    esp_task_wdt_delete(NULL);  // NULL = current task
+
+    const char* response = "{\"success\":true,\"message\":\"Solder pattern test sequence completed\"}";
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_send(req, response, strlen(response));
+
+    return ESP_OK;
+}
+
+/**
  * @brief Handler for OPTIONS requests (CORS preflight)
  */
 static esp_err_t options_handler(httpd_req_t *req) {
@@ -1089,6 +1448,23 @@ web_server_handle_t web_server_init(const web_server_config_t* config, fsm_contr
         .user_ctx = handle
     };
     httpd_register_uri_handler(handle->httpd_handle, &manual_solder_uri);
+
+    // Manual test sequence endpoints
+    httpd_uri_t manual_test_box_uri = {
+        .uri = "/api/manual/test-box",
+        .method = HTTP_POST,
+        .handler = manual_test_box_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_test_box_uri);
+
+    httpd_uri_t manual_test_pattern_uri = {
+        .uri = "/api/manual/test-pattern",
+        .method = HTTP_POST,
+        .handler = manual_test_pattern_handler,
+        .user_ctx = handle
+    };
+    httpd_register_uri_handler(handle->httpd_handle, &manual_test_pattern_uri);
 
     // Heating control endpoints
     httpd_uri_t heating_enable_uri = {

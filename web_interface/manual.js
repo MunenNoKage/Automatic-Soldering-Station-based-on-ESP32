@@ -23,6 +23,8 @@ let heatingDisableBtn;
 let heatingStatus;
 let currentTempDisplay;
 let targetTempDisplay;
+let testBoxBtn;
+let testPatternBtn;
 
 // Canvas elements
 let boardCanvas = null;
@@ -71,6 +73,10 @@ document.addEventListener('DOMContentLoaded', function() {
     currentTempDisplay = document.getElementById('current-temp');
     targetTempDisplay = document.getElementById('target-temp');
 
+    // Test sequence elements
+    testBoxBtn = document.getElementById('test-box-btn');
+    testPatternBtn = document.getElementById('test-pattern-btn');
+
     // Canvas elements
     boardCanvas = document.getElementById('board-canvas');
     if (boardCanvas) {
@@ -112,6 +118,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (heatingDisableBtn) {
         heatingDisableBtn.addEventListener('click', handleDisableHeating);
+    }
+
+    if (testBoxBtn) {
+        testBoxBtn.addEventListener('click', handleTestBox);
+    }
+
+    if (testPatternBtn) {
+        testPatternBtn.addEventListener('click', handleTestPattern);
     }
 
     // Set input field min/max attributes based on hardcoded limits
@@ -230,6 +244,8 @@ async function handleManualEnter() {
             if (manualExitBtn) manualExitBtn.disabled = false;
             if (solderFeedBtn) solderFeedBtn.disabled = false;
             if (solderTakeBtn) solderTakeBtn.disabled = false;
+            if (testBoxBtn) testBoxBtn.disabled = false;
+            if (testPatternBtn) testPatternBtn.disabled = false;
 
             // Enable heating controls
             if (heatingEnableBtn) heatingEnableBtn.disabled = false;
@@ -643,6 +659,94 @@ async function handleDisableHeating() {
         heatingStatus.className = 'upload-status error';
         // Re-enable button on error
         if (heatingDisableBtn) heatingDisableBtn.disabled = false;
+    }
+}
+
+/**
+ * Handle test box sequence
+ */
+async function handleTestBox() {
+    if (!manualModeActive) {
+        manualStatus.textContent = 'Manual control mode not active';
+        manualStatus.className = 'upload-status error';
+        return;
+    }
+
+    // Disable button during execution
+    if (testBoxBtn) testBoxBtn.disabled = true;
+    if (testPatternBtn) testPatternBtn.disabled = true;
+
+    manualStatus.textContent = 'Running box vertex test sequence...';
+    manualStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/test-box', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            manualStatus.textContent = 'Box test sequence completed successfully';
+            manualStatus.className = 'upload-status success';
+        } else {
+            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to run box test');
+            manualStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        manualStatus.textContent = 'Error: ' + error.message;
+        manualStatus.className = 'upload-status error';
+    } finally {
+        // Re-enable buttons
+        if (testBoxBtn) testBoxBtn.disabled = false;
+        if (testPatternBtn) testPatternBtn.disabled = false;
+    }
+}
+
+/**
+ * Handle test pattern sequence
+ */
+async function handleTestPattern() {
+    if (!manualModeActive) {
+        manualStatus.textContent = 'Manual control mode not active';
+        manualStatus.className = 'upload-status error';
+        return;
+    }
+
+    // Disable button during execution
+    if (testBoxBtn) testBoxBtn.disabled = true;
+    if (testPatternBtn) testPatternBtn.disabled = true;
+
+    manualStatus.textContent = 'Running solder pattern test sequence...';
+    manualStatus.className = 'upload-status';
+
+    try {
+        const response = await fetch('/api/manual/test-pattern', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            manualStatus.textContent = 'Solder pattern test sequence completed successfully';
+            manualStatus.className = 'upload-status success';
+        } else {
+            manualStatus.textContent = 'Error: ' + (result.message || 'Failed to run pattern test');
+            manualStatus.className = 'upload-status error';
+        }
+    } catch (error) {
+        manualStatus.textContent = 'Error: ' + error.message;
+        manualStatus.className = 'upload-status error';
+    } finally {
+        // Re-enable buttons
+        if (testBoxBtn) testBoxBtn.disabled = false;
+        if (testPatternBtn) testPatternBtn.disabled = false;
     }
 }
 
